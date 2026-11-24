@@ -3,15 +3,21 @@ import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../models/item.dart';
+import '../services/barcode.dart';
 import '../state/library.dart';
 import '../widgets/cover.dart';
 import '../widgets/item_tile.dart';
+import 'scan_flow.dart';
 
 /// Ajout (item == null) ou modification d'un objet.
 class ItemFormScreen extends StatefulWidget {
-  const ItemFormScreen({super.key, this.item, this.initialType, this.initialWishlist = false});
+  const ItemFormScreen({super.key, this.item, this.draft, this.initialType, this.initialWishlist = false});
 
+  /// Objet à modifier ; null pour un ajout.
   final Item? item;
+
+  /// Valeurs de départ d'un ajout (par exemple issues d'un code-barres).
+  final Item? draft;
   final ItemType? initialType;
   final bool initialWishlist;
 
@@ -22,21 +28,21 @@ class ItemFormScreen extends StatefulWidget {
 class _ItemFormScreenState extends State<ItemFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late ItemType _type;
-  late final TextEditingController _title, _creator, _year, _publisher, _series, _volume, _genre,
-      _identifier, _notes;
+  late final TextEditingController _title, _creator, _year, _publisher, _series, _volume, _genre, _identifier, _notes;
   String _format = '';
   ItemCondition? _condition;
   int _rating = 0;
   bool _wishlist = false;
   String? _coverPath;
   bool _saving = false;
+  bool _saved = false;
 
   bool get _isNew => widget.item == null;
 
   @override
   void initState() {
     super.initState();
-    final i = widget.item;
+    final i = widget.item ?? widget.draft;
     _type = i?.type ?? widget.initialType ?? ItemType.vinyle;
     _title = TextEditingController(text: i?.title);
     _creator = TextEditingController(text: i?.creator);
@@ -54,8 +60,19 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
     _coverPath = i?.coverPath;
   }
 
+  /// Change la couverture en supprimant l'image provisoire remplacée.
+  void _setCover(String? path) {
+    final previous = _coverPath;
+    if (previous != null && previous != widget.item?.coverPath) deleteCoverFile(previous);
+    setState(() => _coverPath = path);
+  }
+
   @override
   void dispose() {
+    // Formulaire abandonné : l'image choisie ou téléchargée ne sert plus.
+    if (!_saved && _coverPath != null && _coverPath != widget.item?.coverPath) {
+      deleteCoverFile(_coverPath);
+    }
     for (final c in [_title, _creator, _year, _publisher, _series, _volume, _genre, _identifier, _notes]) {
       c.dispose();
     }
@@ -94,6 +111,7 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       await library.save(data);
       if (widget.item!.coverPath != _coverPath) await deleteCoverFile(widget.item!.coverPath);
     }
+    _saved = true;
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -102,40 +120,80 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       context: context,
       showDragHandle: true,
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Prendre une photo'),
-            onTap: () => Navigator.pop(ctx, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Choisir dans la galerie'),
-            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-          ),
-          if (_coverPath != null)
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
             ListTile(
-              leading: const Icon(Icons.hide_image_outlined),
-              title: const Text('Retirer l\'image'),
-              onTap: () => Navigator.pop(ctx, 'remove'),
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Prendre une photo'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
             ),
-        ]),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Choisir dans la galerie'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+            if (_coverPath != null)
+              ListTile(
+                leading: const Icon(Icons.hide_image_outlined),
+                title: const Text('Retirer l\'image'),
+                onTap: () => Navigator.pop(ctx, 'remove'),
+              ),
+          ],
+        ),
       ),
     );
     if (source == null) return;
     if (source == 'remove') {
-      setState(() => _coverPath = null);
+      _setCover(null);
       return;
     }
     try {
       final path = await pickCover(source as ImageSource);
-      if (path != null) setState(() => _coverPath = path);
+      if (path != null) _setCover(path);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Impossible de récupérer l\'image : $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Impossible de récupérer l\'image : $e')));
       }
     }
+  }
+
+  /// Lit un code-barres et complète les champs encore vides avec la fiche trouvée.
+  Future<void> _scanIntoForm() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final code = await scanCode(context);
+    if (code == null || !mounted) return;
+    final outcome = await lookupWithProgress(context, code);
+    if (outcome == null || !mounted) return;
+    final d = draftFromLookup(code, outcome);
+    void fill(TextEditingController c, String v) {
+      if (c.text.trim().isEmpty && v.isNotEmpty) c.text = v;
+    }
+
+    setState(() {
+      // Le type n'est changé que si rien n'a encore été saisi.
+      if (_title.text.trim().isEmpty && outcome.result != null) {
+        _type = d.type;
+        if (!_type.formats.contains(_format)) _format = '';
+      }
+      fill(_title, d.title);
+      fill(_creator, d.creator);
+      fill(_year, d.year?.toString() ?? '');
+      fill(_publisher, d.publisher);
+      fill(_series, d.series);
+      fill(_volume, d.volume);
+      fill(_genre, d.genre);
+      if (_format.isEmpty && _type.formats.contains(d.format)) _format = d.format;
+      _identifier.text = code;
+    });
+    if (d.coverPath != null) {
+      if (_coverPath == null) {
+        _setCover(d.coverPath);
+      } else {
+        deleteCoverFile(d.coverPath);
+      }
+    }
+    messenger.showSnackBar(SnackBar(content: Text(outcome.message())));
   }
 
   @override
@@ -150,156 +208,184 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FilledButton(
-              onPressed: _saving ? null : _save,
-              child: const Text('Enregistrer'),
-            ),
+            child: FilledButton(onPressed: _saving ? null : _save, child: const Text('Enregistrer')),
           ),
         ],
       ),
       body: Form(
         key: _formKey,
-        child: ListView(
+        // Une colonne (et non une ListView) : tous les champs restent construits,
+        // donc tous sont validés même s'ils sont hors de l'écran.
+        child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            SegmentedButton<ItemType>(
-              segments: [
-                for (final t in ItemType.values)
-                  ButtonSegment(value: t, label: Text(t.label), icon: Icon(t.icon)),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SegmentedButton<ItemType>(
+                segments: [
+                  for (final t in ItemType.values) ButtonSegment(value: t, label: Text(t.label), icon: Icon(t.icon)),
+                ],
+                selected: {_type},
+                onSelectionChanged: (s) => setState(() {
+                  _type = s.first;
+                  if (!_type.formats.contains(_format)) _format = '';
+                }),
+              ),
+              gap,
+              Center(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: kIsWeb ? null : _chooseCover,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Cover(item: preview, width: 120, radius: 12),
+                      if (!kIsWeb)
+                        const Padding(
+                          padding: EdgeInsets.all(6),
+                          child: CircleAvatar(radius: 16, child: Icon(Icons.add_a_photo_outlined, size: 18)),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              if (_isNew && widget.draft == null && !kIsWeb) ...[
+                gap,
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Remplir avec le code-barres'),
+                  onPressed: _scanIntoForm,
+                ),
               ],
-              selected: {_type},
-              onSelectionChanged: (s) => setState(() {
-                _type = s.first;
-                if (!_type.formats.contains(_format)) _format = '';
-              }),
-            ),
-            gap,
-            Center(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: kIsWeb ? null : _chooseCover,
-                child: Stack(
-                  alignment: Alignment.bottomRight,
+              gap,
+              TextFormField(
+                controller: _title,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Titre *'),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Le titre est obligatoire' : null,
+              ),
+              gap,
+              _AutocompleteField(
+                controller: _creator,
+                label: _type.creatorLabel,
+                options: library.suggestions((i) => i.creator, type: _type),
+              ),
+              if (_type.hasSeries) ...[
+                gap,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Cover(item: preview, width: 120, radius: 12),
-                    if (!kIsWeb)
-                      const Padding(
-                        padding: EdgeInsets.all(6),
-                        child: CircleAvatar(radius: 16, child: Icon(Icons.add_a_photo_outlined, size: 18)),
+                    Expanded(
+                      flex: 3,
+                      child: _AutocompleteField(
+                        controller: _series,
+                        label: 'Série',
+                        options: library.suggestions((i) => i.series, type: _type),
                       ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _volume,
+                        decoration: const InputDecoration(labelText: 'Tome'),
+                      ),
+                    ),
                   ],
                 ),
-              ),
-            ),
-            gap,
-            TextFormField(
-              controller: _title,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Titre *'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Le titre est obligatoire' : null,
-            ),
-            gap,
-            _AutocompleteField(
-              controller: _creator,
-              label: _type.creatorLabel,
-              options: library.suggestions((i) => i.creator, type: _type),
-            ),
-            if (_type.hasSeries) ...[
+              ],
               gap,
-              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Expanded(
-                  flex: 3,
-                  child: _AutocompleteField(
-                    controller: _series,
-                    label: 'Série',
-                    options: library.suggestions((i) => i.series, type: _type),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _AutocompleteField(
+                      controller: _publisher,
+                      label: _type.publisherLabel,
+                      options: library.suggestions((i) => i.publisher, type: _type),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextFormField(
-                    controller: _volume,
-                    decoration: const InputDecoration(labelText: 'Tome'),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: TextFormField(
+                      controller: _year,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(labelText: 'Année'),
+                      validator: (v) {
+                        if (v == null || v.trim().isEmpty) return null;
+                        final n = int.tryParse(v.trim());
+                        return (n == null || n < 1000 || n > DateTime.now().year + 1) ? 'Année invalide' : null;
+                      },
+                    ),
                   ),
+                ],
+              ),
+              gap,
+              _AutocompleteField(
+                controller: _genre,
+                label: 'Genre',
+                options: library.suggestions((i) => i.genre, type: _type),
+              ),
+              gap,
+              DropdownButtonFormField<String?>(
+                key: ValueKey('format-$_type'),
+                initialValue: _format.isEmpty ? null : _format,
+                decoration: const InputDecoration(labelText: 'Format'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('—')),
+                  for (final f in _type.formats) DropdownMenuItem(value: f, child: Text(f)),
+                ],
+                onChanged: (v) => setState(() => _format = v ?? ''),
+              ),
+              gap,
+              DropdownButtonFormField<ItemCondition?>(
+                initialValue: _condition,
+                decoration: const InputDecoration(labelText: 'État'),
+                items: [
+                  const DropdownMenuItem(value: null, child: Text('—')),
+                  for (final c in ItemCondition.values) DropdownMenuItem(value: c, child: Text(c.label)),
+                ],
+                onChanged: (v) => setState(() => _condition = v),
+              ),
+              gap,
+              TextFormField(
+                controller: _identifier,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: _type.identifierLabel,
+                  suffixIcon: kIsWeb
+                      ? null
+                      : IconButton(
+                          tooltip: 'Scanner le code-barres',
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _scanIntoForm,
+                        ),
                 ),
-              ]),
+                validator: (v) => (v == null || v.trim().isEmpty || isPlausibleCode(v)) || _type == ItemType.vinyle
+                    ? null
+                    : 'ISBN invalide',
+              ),
+              gap,
+              Text('Ma note', style: Theme.of(context).textTheme.labelLarge),
+              RatingStars(rating: _rating, onChanged: (r) => setState(() => _rating = r)),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Liste d\'envies'),
+                subtitle: const Text('Je ne l\'ai pas encore'),
+                value: _wishlist,
+                onChanged: (v) => setState(() => _wishlist = v),
+              ),
+              gap,
+              TextFormField(
+                controller: _notes,
+                minLines: 3,
+                maxLines: 8,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Notes', alignLabelWithHint: true),
+              ),
             ],
-            gap,
-            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(
-                flex: 3,
-                child: _AutocompleteField(
-                  controller: _publisher,
-                  label: _type.publisherLabel,
-                  options: library.suggestions((i) => i.publisher, type: _type),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  controller: _year,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Année'),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return null;
-                    final n = int.tryParse(v.trim());
-                    return (n == null || n < 1000 || n > DateTime.now().year + 1) ? 'Année invalide' : null;
-                  },
-                ),
-              ),
-            ]),
-            gap,
-            _AutocompleteField(
-              controller: _genre,
-              label: 'Genre',
-              options: library.suggestions((i) => i.genre, type: _type),
-            ),
-            gap,
-            DropdownButtonFormField<String?>(
-              key: ValueKey('format-$_type'),
-              initialValue: _format.isEmpty ? null : _format,
-              decoration: const InputDecoration(labelText: 'Format'),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('—')),
-                for (final f in _type.formats) DropdownMenuItem(value: f, child: Text(f)),
-              ],
-              onChanged: (v) => setState(() => _format = v ?? ''),
-            ),
-            gap,
-            DropdownButtonFormField<ItemCondition?>(
-              initialValue: _condition,
-              decoration: const InputDecoration(labelText: 'État'),
-              items: [
-                const DropdownMenuItem(value: null, child: Text('—')),
-                for (final c in ItemCondition.values) DropdownMenuItem(value: c, child: Text(c.label)),
-              ],
-              onChanged: (v) => setState(() => _condition = v),
-            ),
-            gap,
-            TextFormField(
-              controller: _identifier,
-              decoration: InputDecoration(labelText: _type.identifierLabel),
-            ),
-            gap,
-            Text('Ma note', style: Theme.of(context).textTheme.labelLarge),
-            RatingStars(rating: _rating, onChanged: (r) => setState(() => _rating = r)),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Liste d\'envies'),
-              subtitle: const Text('Je ne l\'ai pas encore'),
-              value: _wishlist,
-              onChanged: (v) => setState(() => _wishlist = v),
-            ),
-            gap,
-            TextFormField(
-              controller: _notes,
-              minLines: 3,
-              maxLines: 8,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: const InputDecoration(labelText: 'Notes', alignLabelWithHint: true),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -353,9 +439,7 @@ class _AutocompleteFieldState extends State<_AutocompleteField> {
             child: ListView(
               shrinkWrap: true,
               padding: EdgeInsets.zero,
-              children: [
-                for (final o in opts) ListTile(dense: true, title: Text(o), onTap: () => onSelected(o)),
-              ],
+              children: [for (final o in opts) ListTile(dense: true, title: Text(o), onTap: () => onSelected(o))],
             ),
           ),
         ),

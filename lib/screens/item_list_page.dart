@@ -77,7 +77,7 @@ class _ItemListPageState extends State<ItemListPage> {
           child: items.isEmpty
               ? _EmptyState(wishlist: widget.wishlist, searching: pool.isNotEmpty)
               : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 96),
+                  padding: const EdgeInsets.only(bottom: 168),
                   itemCount: items.length,
                   itemBuilder: (context, i) => ItemTile(
                     item: items[i],
