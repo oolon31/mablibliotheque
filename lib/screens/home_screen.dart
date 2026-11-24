@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
 import '../state/library.dart';
+import 'backup_flow.dart';
 import 'item_form_screen.dart';
 import 'item_list_page.dart';
 import 'loans_page.dart';
@@ -32,7 +33,33 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_tab])),
+      appBar: AppBar(
+        title: Text(_titles[_tab]),
+        actions: [
+          PopupMenuButton<void Function()>(
+            tooltip: 'Plus d\'options',
+            onSelected: (action) => action(),
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: () => exportBackup(context),
+                child: const ListTile(
+                  leading: Icon(Icons.save_alt),
+                  title: Text('Sauvegarder la bibliothèque'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: () => importBackup(context),
+                child: const ListTile(
+                  leading: Icon(Icons.restore),
+                  title: Text('Restaurer une sauvegarde'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: !library.loaded ? const Center(child: CircularProgressIndicator()) : pages[_tab],
       floatingActionButton: _tab <= 1
           ? Column(

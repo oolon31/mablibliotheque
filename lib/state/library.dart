@@ -136,6 +136,15 @@ class Library extends ChangeNotifier {
 
   Future<void> giveBack(Item item) => save(item.copyWith(loanedTo: null, loanDate: null));
 
+  /// Ajoute les objets d'une sauvegarde, ou remplace toute la bibliothèque par eux.
+  Future<List<Item>> restore(List<Item> items, {required bool replace}) async {
+    final saved = await _repo.insertAll(items, replace: replace);
+    if (replace) _items = [];
+    _items.addAll(saved);
+    notifyListeners();
+    return saved;
+  }
+
   /// Passe un objet de la liste d'envies à la collection.
   Future<void> acquire(Item item) => save(item.copyWith(wishlist: false));
 }
