@@ -1,0 +1,27 @@
+{
+  "_comment": "Exemple construit d'après le format documenté de l'API Google Books (l'API était limitée en débit lors de l'écriture des tests).",
+  "kind": "books#volumes",
+  "totalItems": 1,
+  "items": [
+    {
+      "kind": "books#volume",
+      "id": "exemple",
+      "volumeInfo": {
+        "title": "Les Aventures de Tintin - Tome 17 - On a marché sur la lune",
+        "authors": ["Hergé"],
+        "publisher": "Casterman",
+        "publishedDate": "1993-01-01",
+        "industryIdentifiers": [
+          {"type": "ISBN_10", "identifier": "220300116X"},
+          {"type": "ISBN_13", "identifier": "9782203001169"}
+        ],
+        "categories": ["Comics & Graphic Novels"],
+        "imageLinks": {
+          "smallThumbnail": "http://books.google.com/books/content?id=exemple&printsec=frontcover&img=1&zoom=5&edge=curl&source=gbs_api",
+          "thumbnail": "http://books.google.com/books/content?id=exemple&printsec=frontcover&img=1&zoom=1&edge=curl&source=gbs_api"
+        },
+        "language": "fr"
+      }
+    }
+  ]
+}

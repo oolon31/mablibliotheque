@@ -61,10 +61,15 @@ Future<String?> pickCover(ImageSource source) async {
     imageQuality: 85,
   );
   if (picked == null) return null;
+  return saveCoverBytes(await File(picked.path).readAsBytes(), p.extension(picked.path));
+}
+
+/// Enregistre une image dans le dossier des couvertures et renvoie son chemin.
+Future<String> saveCoverBytes(List<int> bytes, [String extension = '.jpg']) async {
   final dir = Directory(p.join((await getApplicationDocumentsDirectory()).path, 'covers'));
   await dir.create(recursive: true);
-  final dest = p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}${p.extension(picked.path)}');
-  await File(picked.path).copy(dest);
+  final dest = p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}$extension');
+  await File(dest).writeAsBytes(bytes);
   return dest;
 }
 

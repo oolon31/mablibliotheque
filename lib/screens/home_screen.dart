@@ -1,9 +1,11 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 
 import '../state/library.dart';
 import 'item_form_screen.dart';
 import 'item_list_page.dart';
 import 'loans_page.dart';
+import 'scan_flow.dart';
 import 'stats_page.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -33,12 +35,28 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(title: Text(_titles[_tab])),
       body: !library.loaded ? const Center(child: CircularProgressIndicator()) : pages[_tab],
       floatingActionButton: _tab <= 1
-          ? FloatingActionButton.extended(
-              icon: const Icon(Icons.add),
-              label: const Text('Ajouter'),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => ItemFormScreen(initialWishlist: _tab == 1),
-              )),
+          ? Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                if (!kIsWeb) ...[
+                  FloatingActionButton(
+                    heroTag: 'scan',
+                    tooltip: 'Ajouter en scannant le code-barres',
+                    onPressed: () => scanAndAdd(context, wishlist: _tab == 1),
+                    child: const Icon(Icons.qr_code_scanner),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                FloatingActionButton.extended(
+                  heroTag: 'add',
+                  icon: const Icon(Icons.add),
+                  label: const Text('Ajouter'),
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                    builder: (_) => ItemFormScreen(initialWishlist: _tab == 1),
+                  )),
+                ),
+              ],
             )
           : null,
       bottomNavigationBar: NavigationBar(
