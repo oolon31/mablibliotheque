@@ -9,12 +9,14 @@ class SqliteItemRepository implements ItemRepository {
 
   final Database _db;
 
-  static Future<SqliteItemRepository> open() async {
-    final path = p.join(await getDatabasesPath(), 'bibliotheque.db');
-    final db = await openDatabase(
+  /// [path] permet aux tests d'utiliser une base en mémoire.
+  static Future<SqliteItemRepository> open({String? path, DatabaseFactory? factory}) async {
+    path ??= p.join(await getDatabasesPath(), 'bibliotheque.db');
+    final db = await (factory ?? databaseFactory).openDatabase(
       path,
-      version: 1,
-      onCreate: (db, version) => db.execute('''
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, version) => db.execute('''
         CREATE TABLE items (
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           type TEXT NOT NULL,
@@ -37,6 +39,7 @@ class SqliteItemRepository implements ItemRepository {
           created_at INTEGER NOT NULL
         )
       '''),
+      ),
     );
     return SqliteItemRepository._(db);
   }
@@ -62,5 +65,18 @@ class SqliteItemRepository implements ItemRepository {
   @override
   Future<void> delete(int id) async {
     await _db.delete('items', where: 'id = ?', whereArgs: [id]);
+  }
+
+  @override
+  Future<List<Item>> insertAll(List<Item> items, {bool replace = false}) {
+    return _db.transaction((txn) async {
+      if (replace) await txn.delete('items');
+      final saved = <Item>[];
+      for (final item in items) {
+        final id = await txn.insert('items', item.toMap()..remove('id'));
+        saved.add(item.copyWith(id: id));
+      }
+      return saved;
+    });
   }
 }

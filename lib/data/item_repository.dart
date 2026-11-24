@@ -7,6 +7,10 @@ abstract class ItemRepository {
   Future<Item> insert(Item item);
   Future<void> update(Item item);
   Future<void> delete(int id);
+
+  /// Ajoute plusieurs objets d'un coup ; avec [replace], efface d'abord tout le reste.
+  /// Tout réussit ou rien ne change.
+  Future<List<Item>> insertAll(List<Item> items, {bool replace = false});
 }
 
 class MemoryItemRepository implements ItemRepository {
@@ -35,4 +39,10 @@ class MemoryItemRepository implements ItemRepository {
 
   @override
   Future<void> delete(int id) async => _items.remove(id);
+
+  @override
+  Future<List<Item>> insertAll(List<Item> items, {bool replace = false}) async {
+    if (replace) _items.clear();
+    return [for (final i in items) await insert(i)];
+  }
 }
