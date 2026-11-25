@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../cloud/config.dart';
+
 /// Connexion, ou création de compte (e-mail + mot de passe).
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -87,6 +89,64 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  /// Demande un lien de réinitialisation. Le message est le même que l'adresse existe ou non.
+  Future<void> _forgotPassword() async {
+    final typed = _email.text.trim();
+    final address = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        final controller = TextEditingController(text: typed);
+        return AlertDialog(
+          title: const Text('Mot de passe oublié'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Indiquez votre adresse : vous recevrez un lien pour choisir un nouveau mot de passe.'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                keyboardType: TextInputType.emailAddress,
+                autocorrect: false,
+                decoration: const InputDecoration(labelText: 'Adresse e-mail'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, controller.text.trim()), child: const Text('Envoyer')),
+          ],
+        );
+      },
+    );
+    if (address == null || address.isEmpty || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await Supabase.instance.client.auth.resetPasswordForEmail(address, redirectTo: passwordResetRedirect);
+      setState(() {
+        _messageIsError = false;
+        _message =
+            'Si un compte existe avec cette adresse, un lien de réinitialisation vient d\'être envoyé. '
+            'Pensez à vérifier les indésirables.';
+      });
+    } on AuthException catch (e) {
+      setState(() {
+        _messageIsError = true;
+        _message = e.message.toLowerCase().contains('rate') || e.message.toLowerCase().contains('too many')
+            ? 'Trop de demandes. Attendez quelques minutes avant de réessayer.'
+            : 'Envoi impossible pour le moment.';
+      });
+    } catch (_) {
+      setState(() {
+        _messageIsError = true;
+        _message = 'Pas de connexion internet.';
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -167,6 +227,8 @@ class _AuthScreenState extends State<AuthScreen> {
                           ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
                           : Text(_signup ? 'Créer mon compte' : 'Se connecter'),
                     ),
+                    if (!_signup)
+                      TextButton(onPressed: _busy ? null : _forgotPassword, child: const Text('Mot de passe oublié ?')),
                     if (_message != null) ...[
                       const SizedBox(height: 16),
                       Text(
