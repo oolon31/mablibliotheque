@@ -71,9 +71,14 @@ class _BibliothequeRootState extends State<BibliothequeRoot> {
         _importChecked = true;
         WidgetsBinding.instance.addPostFrameCallback((_) => _offerImport());
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
-        setState(() => _error = 'Impossible de charger votre bibliothèque. Vérifiez votre connexion.');
+        final detail = e.toString();
+        setState(
+          () => _error =
+              'Impossible de charger votre bibliothèque.\n\n'
+              'Détail technique : ${detail.length > 300 ? detail.substring(0, 300) : detail}',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
