@@ -10,6 +10,7 @@ import '../cloud/session.dart';
 import '../data/item_repository.dart';
 import '../state/library.dart';
 import 'auth_screen.dart';
+import 'reset_password_screen.dart';
 import 'home_screen.dart';
 
 /// Racine de l'application. Elle tient l'état de session et la bibliothèque courante
@@ -28,6 +29,7 @@ class _BibliothequeRootState extends State<BibliothequeRoot> {
   final _placeholder = Library(MemoryItemRepository());
   StreamSubscription<AuthState>? _sub;
   bool _busy = false;
+  bool _recovering = false;
   bool _importChecked = false;
   String? _error;
 
@@ -36,6 +38,11 @@ class _BibliothequeRootState extends State<BibliothequeRoot> {
     super.initState();
     final auth = Supabase.instance.client.auth;
     _sub = auth.onAuthStateChange.listen((state) {
+      if (state.event == AuthChangeEvent.passwordRecovery) {
+        // Lien de réinitialisation ouvert : on demande le nouveau mot de passe avant tout le reste.
+        setState(() => _recovering = true);
+        return;
+      }
       if (state.session == null) {
         _app.clear();
         _importChecked = false;
@@ -121,7 +128,15 @@ class _BibliothequeRootState extends State<BibliothequeRoot> {
         builder: (context, _) {
           final library = _app.current;
           final Widget home;
-          if (library != null) {
+          if (_recovering) {
+            home = ResetPasswordScreen(
+              onDone: () {
+                setState(() => _recovering = false);
+                // Le mot de passe est changé : on reprend la session normale.
+                if (_app.current == null) _load();
+              },
+            );
+          } else if (library != null) {
             home = const HomeScreen();
           } else if (!signedIn) {
             home = const AuthScreen();
