@@ -17,13 +17,15 @@ class StatsPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
-        Row(children: [
-          _Tile(value: owned.length, label: 'dans la collection'),
-          const SizedBox(width: 12),
-          _Tile(value: library.loans.length, label: 'prêtés'),
-          const SizedBox(width: 12),
-          _Tile(value: wishCount, label: 'envies'),
-        ]),
+        Row(
+          children: [
+            _Tile(value: owned.length, label: 'dans la collection'),
+            const SizedBox(width: 12),
+            _Tile(value: library.loans.length, label: 'prêtés'),
+            const SizedBox(width: 12),
+            _Tile(value: wishCount, label: 'envies'),
+          ],
+        ),
         const SizedBox(height: 24),
         Text('Par type', style: theme.textTheme.titleMedium),
         const SizedBox(height: 8),
@@ -55,8 +57,7 @@ class StatsPage extends StatelessWidget {
       const SizedBox(height: 24),
       Text(title, style: Theme.of(context).textTheme.titleMedium),
       const SizedBox(height: 8),
-      for (final e in top)
-        _Bar(label: e.key, count: e.value, total: max, color: Theme.of(context).colorScheme.primary),
+      for (final e in top) _Bar(label: e.key, count: e.value, total: max, color: Theme.of(context).colorScheme.primary),
     ];
   }
 }
@@ -75,12 +76,16 @@ class _Tile extends StatelessWidget {
         margin: EdgeInsets.zero,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
-          child: Column(children: [
-            Text('$value', style: theme.textTheme.headlineMedium),
-            Text(label,
+          child: Column(
+            children: [
+              Text('$value', style: theme.textTheme.headlineMedium),
+              Text(
+                label,
                 textAlign: TextAlign.center,
-                style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-          ]),
+                style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -101,23 +106,28 @@ class _Bar extends StatelessWidget {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          if (icon != null) ...[Icon(icon, size: 18, color: color), const SizedBox(width: 6)],
-          Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
-          Text('$count', style: theme.textTheme.labelLarge),
-        ]),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: total == 0 ? 0 : count / total,
-            minHeight: 8,
-            color: color,
-            backgroundColor: color.withValues(alpha: 0.12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              if (icon != null) ...[Icon(icon, size: 18, color: color), const SizedBox(width: 6)],
+              Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Text('$count', style: theme.textTheme.labelLarge),
+            ],
           ),
-        ),
-      ]),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: total == 0 ? 0 : count / total,
+              minHeight: 8,
+              color: color,
+              backgroundColor: color.withValues(alpha: 0.12),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

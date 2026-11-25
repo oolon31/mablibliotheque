@@ -30,8 +30,7 @@ class _ItemListPageState extends State<ItemListPage> {
   Widget build(BuildContext context) {
     final library = LibraryScope.of(context);
     final pool = library.items.where((i) => i.wishlist == widget.wishlist);
-    final items = filterItems(library.items,
-        type: _type, query: _search.text, wishlist: widget.wishlist, sort: _sort);
+    final items = filterItems(library.items, type: _type, query: _search.text, wishlist: widget.wishlist, sort: _sort);
 
     return Column(
       children: [
@@ -45,19 +44,13 @@ class _ItemListPageState extends State<ItemListPage> {
             onChanged: (_) => setState(() {}),
             trailing: [
               if (_search.text.isNotEmpty)
-                IconButton(
-                  tooltip: 'Effacer',
-                  icon: const Icon(Icons.close),
-                  onPressed: () => setState(_search.clear),
-                ),
+                IconButton(tooltip: 'Effacer', icon: const Icon(Icons.close), onPressed: () => setState(_search.clear)),
               PopupMenuButton<SortOrder>(
                 tooltip: 'Trier',
                 icon: const Icon(Icons.sort),
                 initialValue: _sort,
                 onSelected: (s) => setState(() => _sort = s),
-                itemBuilder: (_) => [
-                  for (final s in SortOrder.values) PopupMenuItem(value: s, child: Text(s.label)),
-                ],
+                itemBuilder: (_) => [for (final s in SortOrder.values) PopupMenuItem(value: s, child: Text(s.label))],
               ),
             ],
           ),
@@ -68,22 +61,24 @@ class _ItemListPageState extends State<ItemListPage> {
           child: Row(
             children: [
               _chip(null, 'Tout', pool.length),
-              for (final t in ItemType.values)
-                _chip(t, t.plural, pool.where((i) => i.type == t).length),
+              for (final t in ItemType.values) _chip(t, t.plural, pool.where((i) => i.type == t).length),
             ],
           ),
         ),
         Expanded(
           child: items.isEmpty
               ? _EmptyState(wishlist: widget.wishlist, searching: pool.isNotEmpty)
-              : ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 168),
-                  itemCount: items.length,
-                  itemBuilder: (context, i) => ItemTile(
-                    item: items[i],
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                      builder: (_) => ItemDetailScreen(itemId: items[i].id!),
-                    )),
+              : RefreshIndicator(
+                  onRefresh: () => library.load(),
+                  child: ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 168),
+                    itemCount: items.length,
+                    itemBuilder: (context, i) => ItemTile(
+                      item: items[i],
+                      onTap: () =>
+                          Navigator.of(context)
+                              .push(MaterialPageRoute<void>(builder: (_) => ItemDetailScreen(itemId: items[i].id!))),
+                    ),
                   ),
                 ),
         ),
@@ -117,22 +112,33 @@ class _EmptyState extends StatelessWidget {
     final (icon, title, text) = searching
         ? (Icons.search_off, 'Aucun résultat', 'Essayez un autre mot ou un autre filtre.')
         : wishlist
-            ? (Icons.favorite_border, 'Aucune envie pour l\'instant',
-                'Ajoutez ici les disques, livres et BD que vous aimeriez acquérir.')
-            : (Icons.library_books_outlined, 'Votre bibliothèque est vide',
-                'Touchez « Ajouter » pour enregistrer votre premier vinyle, livre ou BD.');
+        ? (
+            Icons.favorite_border,
+            'Aucune envie pour l\'instant',
+            'Ajoutez ici les disques, livres et BD que vous aimeriez acquérir.',
+          )
+        : (
+            Icons.library_books_outlined,
+            'Votre bibliothèque est vide',
+            'Touchez « Ajouter » pour enregistrer votre premier vinyle, livre ou BD.',
+          );
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 64, color: theme.colorScheme.outline),
-          const SizedBox(height: 16),
-          Text(title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
-          const SizedBox(height: 8),
-          Text(text,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 64, color: theme.colorScheme.outline),
+            const SizedBox(height: 16),
+            Text(title, style: theme.textTheme.titleLarge, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            Text(
+              text,
               textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-        ]),
+              style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        ),
       ),
     );
   }

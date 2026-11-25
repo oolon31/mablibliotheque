@@ -92,7 +92,8 @@ BackupContents decodeBackup(List<int> bytes) {
   final version = manifest['version'];
   if (version is! int || version > backupVersion) {
     throw const BackupException(
-        'Cette sauvegarde vient d\'une version plus récente de l\'application. Mettez d\'abord l\'application à jour.');
+      'Cette sauvegarde vient d\'une version plus récente de l\'application. Mettez d\'abord l\'application à jour.',
+    );
   }
 
   final entries = <BackupEntry>[];

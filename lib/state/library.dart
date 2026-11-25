@@ -47,10 +47,9 @@ List<Item> filterItems(
     if (i.wishlist != wishlist) return false;
     if (type != null && i.type != type) return false;
     if (words.isEmpty) return true;
-    final haystack = normalize([
-      i.title, i.creator, i.series, i.publisher, i.genre, i.identifier, i.notes,
-      i.year?.toString() ?? '',
-    ].join(' '));
+    final haystack = normalize(
+      [i.title, i.creator, i.series, i.publisher, i.genre, i.identifier, i.notes, i.year?.toString() ?? ''].join(' '),
+    );
     return words.every(haystack.contains);
   }).toList();
 
@@ -76,16 +75,21 @@ List<Item> filterItems(
 
 /// État global de la bibliothèque, partagé par tous les écrans.
 class Library extends ChangeNotifier {
-  Library(this._repo);
+  Library(this._repo, {this.canEdit = true});
 
   final ItemRepository _repo;
+
+  /// Faux pour une bibliothèque partagée en lecture seule.
+  final bool canEdit;
+
   List<Item> _items = [];
   bool loaded = false;
 
   List<Item> get items => List.unmodifiable(_items);
   Iterable<Item> get owned => _items.where((i) => !i.wishlist);
-  List<Item> get loans => owned.where((i) => i.isLoaned).toList()
-    ..sort((a, b) => (a.loanDate ?? a.createdAt).compareTo(b.loanDate ?? b.createdAt));
+  List<Item> get loans =>
+      owned.where((i) => i.isLoaned).toList()
+        ..sort((a, b) => (a.loanDate ?? a.createdAt).compareTo(b.loanDate ?? b.createdAt));
 
   Item? byId(int id) {
     for (final i in _items) {
@@ -131,8 +135,7 @@ class Library extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> lend(Item item, String to) =>
-      save(item.copyWith(loanedTo: to.trim(), loanDate: DateTime.now()));
+  Future<void> lend(Item item, String to) => save(item.copyWith(loanedTo: to.trim(), loanDate: DateTime.now()));
 
   Future<void> giveBack(Item item) => save(item.copyWith(loanedTo: null, loanDate: null));
 
@@ -151,12 +154,9 @@ class Library extends ChangeNotifier {
 
 /// Donne accès à la [Library] depuis n'importe quel widget.
 class LibraryScope extends InheritedNotifier<Library> {
-  const LibraryScope({super.key, required Library library, required super.child})
-      : super(notifier: library);
+  const LibraryScope({super.key, required Library library, required super.child}) : super(notifier: library);
 
-  static Library of(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<LibraryScope>()!.notifier!;
+  static Library of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<LibraryScope>()!.notifier!;
 
-  static Library read(BuildContext context) =>
-      context.getInheritedWidgetOfExactType<LibraryScope>()!.notifier!;
+  static Library read(BuildContext context) => context.getInheritedWidgetOfExactType<LibraryScope>()!.notifier!;
 }

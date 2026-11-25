@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:ma_bibliotheque/data/item_repository.dart';
-import 'package:ma_bibliotheque/main.dart';
+import 'package:ma_bibliotheque/app.dart';
+import 'package:ma_bibliotheque/screens/home_screen.dart';
 import 'package:ma_bibliotheque/screens/item_form_screen.dart';
 import 'package:ma_bibliotheque/models/item.dart';
 import 'package:ma_bibliotheque/state/library.dart';
@@ -13,7 +14,12 @@ void main() {
   testWidgets('ajouter une BD puis la retrouver par la recherche', (tester) async {
     final library = Library(MemoryItemRepository());
     await library.load();
-    await tester.pumpWidget(BibliothequeApp(library: library));
+    await tester.pumpWidget(
+      LibraryScope(
+        library: library,
+        child: const BibliothequeApp(home: HomeScreen()),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Votre bibliothèque est vide'), findsOneWidget);
@@ -61,10 +67,12 @@ void main() {
       identifier: '9782203001169',
       createdAt: DateTime(2026),
     );
-    await tester.pumpWidget(LibraryScope(
-      library: library,
-      child: MaterialApp(home: ItemFormScreen(draft: draft)),
-    ));
+    await tester.pumpWidget(
+      LibraryScope(
+        library: library,
+        child: MaterialApp(home: ItemFormScreen(draft: draft)),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Ajouter'), findsOneWidget); // c'est bien un ajout
@@ -84,10 +92,12 @@ void main() {
   testWidgets('un ISBN invalide est refusé', (tester) async {
     final library = Library(MemoryItemRepository());
     await library.load();
-    await tester.pumpWidget(LibraryScope(
-      library: library,
-      child: const MaterialApp(home: ItemFormScreen(initialType: ItemType.livre)),
-    ));
+    await tester.pumpWidget(
+      LibraryScope(
+        library: library,
+        child: const MaterialApp(home: ItemFormScreen(initialType: ItemType.livre)),
+      ),
+    );
     await tester.enterText(find.widgetWithText(TextFormField, 'Titre *'), 'Test');
     await tester.enterText(find.widgetWithText(TextFormField, 'ISBN'), '9782070360025');
     await tester.tap(find.text('Enregistrer'));
