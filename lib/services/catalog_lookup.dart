@@ -86,7 +86,31 @@ class CatalogLookup {
       // une erreur de MusicBrainz ne doit pas masquer le simple « rien trouvé ».
       return await _book(code) ?? await _music(code).catchError((Object _) => null);
     }
-    return await _music(code) ?? await _book(code);
+    // Disques d'abord (les erreurs réseau remontent), puis films via UPCitemdb.
+    return await _music(code) ?? await _video(code);
+  }
+
+  /// Films : UPCitemdb (essai gratuit, quota limité par adresse IP). Null si indisponible.
+  Future<LookupResult?> _video(String code) async {
+    try {
+      final json = await _getJson('https://api.upcitemdb.com/prod/trial/lookup?upc=$code');
+      return json == null ? null : parseUpcItemDb(json, code);
+    } on LookupException {
+      return null;
+    }
+  }
+
+  /// Recherche par titre et auteur (Open Library). Sert quand le code-barres n'est pas reconnu.
+  Future<List<TitleMatch>> searchTitles(String title, {String author = ''}) async {
+    final params = {
+      'title': title.trim(),
+      if (author.trim().isNotEmpty) 'author': author.trim(),
+      'limit': '12',
+      'fields': 'title,author_name,first_publish_year,publisher,isbn',
+    };
+    final url = Uri.https('openlibrary.org', '/search.json', params).toString();
+    final json = await _getJson(url);
+    return json == null ? const [] : parseOpenLibrarySearch(json);
   }
 
   Future<LookupResult?> _book(String isbn) async {
@@ -425,4 +449,96 @@ LookupResult? parseMusicBrainz(Map<String, dynamic> json, String code) {
     coverUrl: id == null ? null : 'https://coverartarchive.org/release/$id/front-500',
     source: 'MusicBrainz',
   );
+}
+
+// ---------------------------------------------------------------------------
+// Films (UPCitemdb) et recherche par titre (Open Library).
+
+/// Résultat d'une recherche par titre, à choisir par l'utilisateur.
+class TitleMatch {
+  const TitleMatch({required this.title, this.creator = '', this.year, this.publisher = '', this.isbn});
+
+  final String title;
+  final String creator;
+  final int? year;
+  final String publisher;
+
+  /// ISBN-13 de cette édition, s'il existe.
+  final String? isbn;
+
+  /// Une fiche « livre » à partir de ce résultat.
+  LookupResult toLookup() => LookupResult(
+    type: ItemType.livre,
+    title: title,
+    creator: creator,
+    year: year,
+    publisher: publisher,
+    source: 'Open Library (recherche par titre)',
+  );
+}
+
+/// Retire les mentions de format du titre : « Dune [Blu-ray] + DVD » → « Dune ».
+String cleanVideoTitle(String raw) {
+  var t = raw.replaceAll(RegExp(r'\s*[\[\(][^\]\)]*(blu-?ray|dvd|4k|uhd)[^\]\)]*[\]\)]', caseSensitive: false), '');
+  t = t.replaceAll(RegExp(r'\s*\+\s*(blu-?ray|dvd|4k uhd)\b', caseSensitive: false), '');
+  t = t.replaceAll(RegExp(r'\s*[-–]\s*(blu-?ray|dvd|4k uhd)\s*$', caseSensitive: false), '');
+  return t.replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+/// Réponse UPCitemdb : le premier produit. Les disques musicaux sont laissés à MusicBrainz.
+LookupResult? parseUpcItemDb(Map<String, dynamic> json, String code) {
+  final items = json['items'];
+  if (items is! List || items.isEmpty) return null;
+  final item = items.first;
+  if (item is! Map) return null;
+  final rawTitle = _str(item['title']);
+  if (rawTitle.isEmpty) return null;
+  final category = _str(item['category']).toLowerCase();
+  if (category.contains('music')) return null;
+
+  final lower = '$rawTitle $category'.toLowerCase();
+  final isBluray = RegExp(r'blu-?ray|blu ray|4k|uhd').hasMatch(lower);
+  final images = item['images'];
+  final cover = images is List ? images.whereType<String>().firstOrNull : null;
+  final title = cleanVideoTitle(rawTitle);
+  if (title.isEmpty) return null;
+  return LookupResult(
+    type: isBluray ? ItemType.bluray : ItemType.dvd,
+    title: title,
+    // UPCitemdb ne donne ni réalisateur ni éditeur fiables : la marque est souvent le distributeur.
+    publisher: _str(item['brand']),
+    coverUrl: cover,
+    source: 'UPCitemdb',
+  );
+}
+
+/// Réponse Open Library (recherche) : une entrée par œuvre ou édition.
+List<TitleMatch> parseOpenLibrarySearch(Map<String, dynamic> json) {
+  final docs = json['docs'];
+  if (docs is! List) return const [];
+  final out = <TitleMatch>[];
+  for (final d in docs.whereType<Map>()) {
+    final title = _str(d['title']);
+    if (title.isEmpty) continue;
+    final authors = d['author_name'];
+    final publishers = d['publisher'];
+    out.add(
+      TitleMatch(
+        title: title,
+        creator: authors is List ? authors.whereType<String>().map(composeAccents).join(', ') : '',
+        year: d['first_publish_year'] as int?,
+        publisher: publishers is List && publishers.isNotEmpty ? _str(publishers.first) : '',
+        isbn: _pickIsbn13(d['isbn']),
+      ),
+    );
+  }
+  return out;
+}
+
+/// Premier ISBN-13 valide de la liste, de préférence un 978 (livre imprimé).
+String? _pickIsbn13(Object? isbns) {
+  if (isbns is! List) return null;
+  final valid = isbns.whereType<String>().map(normalizeCode).where(isIsbn).toList();
+  if (valid.isEmpty) return null;
+  return valid.firstWhere((c) => c.startsWith('978'), orElse: () => valid.first);
 }

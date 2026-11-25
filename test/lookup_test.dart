@@ -18,6 +18,7 @@ http.Response jsonResponse(String name) => http.Response.bytes(
 );
 
 void main() {
+  videoAndTitleTests();
   group('codes-barres', () {
     test('ISBN-10 converti en ISBN-13', () {
       expect(isbn10To13('220300116X'), '9782203001169');
@@ -200,6 +201,68 @@ void main() {
         throwsA(isA<LookupException>().having((e) => e.message, 'message', 'pas de connexion internet')),
       );
       expect(() => l.lookup('196587737313'), throwsA(isA<LookupException>()));
+    });
+  });
+}
+
+// Films et recherche par titre.
+void videoAndTitleTests() {
+  group('films (UPCitemdb) et recherche par titre', () {
+    test('un Blu-ray est reconnu, son titre est nettoyé des mentions de format', () {
+      final json = {
+        'code': 'OK',
+        'items': [
+          {
+            'title': 'Dune [Blu-ray] + DVD',
+            'brand': 'Warner Bros',
+            'category': 'Movies & TV',
+            'images': ['https://images.example.com/dune.jpg'],
+          },
+        ],
+      };
+      final r = parseUpcItemDb(json, '0883929000000')!;
+      expect(r.type, ItemType.bluray);
+      expect(r.title, 'Dune');
+      expect(r.publisher, 'Warner Bros');
+      expect(r.coverUrl, 'https://images.example.com/dune.jpg');
+    });
+
+    test('un DVD simple est un DVD ; un produit musical est laissé à MusicBrainz', () {
+      expect(
+        parseUpcItemDb({
+          'items': [
+            {'title': 'Amélie - DVD'},
+          ],
+        }, '1')!.type,
+        ItemType.dvd,
+      );
+      expect(cleanVideoTitle('Amélie - DVD'), 'Amélie');
+      expect(
+        parseUpcItemDb({
+          'items': [
+            {'title': 'Random Access Memories', 'category': 'Music'},
+          ],
+        }, '1'),
+        isNull,
+      );
+      expect(parseUpcItemDb({'items': []}, '1'), isNull);
+    });
+
+    test('recherche par titre : résultats Open Library réels, ISBN-13 retenu', () {
+      final matches = parseOpenLibrarySearch(fixture('openlibrary_search_lune'));
+      expect(matches, isNotEmpty);
+      final tintin = matches.firstWhere((m) => m.isbn == '9782203001169', orElse: () => matches.first);
+      expect(tintin.title.toLowerCase(), contains('lune'));
+      expect(tintin.creator, contains('Hergé'));
+      expect(matches.every((m) => m.isbn == null || isIsbn(m.isbn!)), isTrue);
+    });
+
+    test('un résultat de recherche devient une fiche livre prête à enregistrer', () {
+      const m = TitleMatch(title: 'On a marché sur la lune', creator: 'Hergé', year: 1954, isbn: '9782203001169');
+      final r = m.toLookup();
+      expect(r.type, ItemType.livre);
+      expect(r.creator, 'Hergé');
+      expect(r.year, 1954);
     });
   });
 }

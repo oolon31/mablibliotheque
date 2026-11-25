@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-/// Les trois types d'objets gérés par l'application.
+/// Les types d'objets gérés par l'application.
 enum ItemType {
   vinyle(
     label: 'Vinyle',
@@ -28,6 +28,24 @@ enum ItemType {
     publisherLabel: 'Éditeur',
     identifierLabel: 'ISBN',
     formats: ['Album', 'Intégrale', 'Manga', 'Comics', 'Roman graphique'],
+  ),
+  dvd(
+    label: 'DVD',
+    plural: 'DVD',
+    icon: Icons.movie_outlined,
+    creatorLabel: 'Réalisateur',
+    publisherLabel: 'Éditeur / distributeur',
+    identifierLabel: 'Code-barres (EAN)',
+    formats: ['Simple', 'Double', 'Coffret', 'Édition spéciale'],
+  ),
+  bluray(
+    label: 'Blu-ray',
+    plural: 'Blu-ray',
+    icon: Icons.hd_outlined,
+    creatorLabel: 'Réalisateur',
+    publisherLabel: 'Éditeur / distributeur',
+    identifierLabel: 'Code-barres (EAN)',
+    formats: ['Simple', 'Double', 'Steelbook', '4K UHD', 'Coffret'],
   );
 
   const ItemType({
@@ -50,6 +68,9 @@ enum ItemType {
 
   /// Les vinyles n'ont pas de série ni de tome.
   bool get hasSeries => this != ItemType.vinyle;
+
+  /// Films : pas d'ISBN, mais un code-barres EAN.
+  bool get isVideo => this == ItemType.dvd || this == ItemType.bluray;
 }
 
 enum ItemCondition {

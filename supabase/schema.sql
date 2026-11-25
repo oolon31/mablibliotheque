@@ -263,6 +263,11 @@ begin
 end;
 $$;
 
+-- Types d'objets : livres, BD, vinyles, DVD et Blu-ray (idempotent).
+alter table public.items drop constraint if exists items_type_check;
+alter table public.items add constraint items_type_check
+  check (type in ('vinyle', 'livre', 'bd', 'dvd', 'bluray'));
+
 -- ---------------------------------------------------------------------------
 -- Droits de base. Les nouveaux projets Supabase n'accordent plus rien automatiquement :
 -- sans ces lignes, l'application reçoit « permission denied » (code 42501).

@@ -221,15 +221,21 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SegmentedButton<ItemType>(
-                segments: [
-                  for (final t in ItemType.values) ButtonSegment(value: t, label: Text(t.label), icon: Icon(t.icon)),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final t in ItemType.values)
+                    ChoiceChip(
+                      avatar: Icon(t.icon, size: 18),
+                      label: Text(t.label),
+                      selected: _type == t,
+                      onSelected: (_) => setState(() {
+                        _type = t;
+                        if (!_type.formats.contains(_format)) _format = '';
+                      }),
+                    ),
                 ],
-                selected: {_type},
-                onSelectionChanged: (s) => setState(() {
-                  _type = s.first;
-                  if (!_type.formats.contains(_format)) _format = '';
-                }),
               ),
               gap,
               Center(
