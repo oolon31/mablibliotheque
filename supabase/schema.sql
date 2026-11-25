@@ -262,3 +262,17 @@ begin
   end loop;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Droits de base. Les nouveaux projets Supabase n'accordent plus rien automatiquement :
+-- sans ces lignes, l'application reçoit « permission denied » (code 42501).
+-- ---------------------------------------------------------------------------
+grant usage on schema public to authenticated;
+grant select, update on public.profiles to authenticated;
+grant select, insert, update, delete on public.items, public.item_private,
+  public.shares, public.invitations to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+grant execute on function public.can_read(uuid), public.can_write(uuid),
+  public.invite_by_email(text, text), public.restore_library(jsonb, boolean) to authenticated;
+-- Le rôle « anon » (non connecté) n'a aucun droit sur les données.
+revoke all on all tables in schema public from anon;

@@ -122,6 +122,8 @@ select 'alice rend visible dave' as etape, public.invite_by_email('dave@x.fr', '
 
 -- ---- Anonyme : rien du tout
 select pg_temp.as_anon();
-select 'anonyme voit les objets (attendu 0)' as etape, count(*) from public.items;
-select 'anonyme voit les profils (attendu 0)' as etape, count(*) from public.profiles;
+do $$ begin perform count(*) from public.items; raise exception 'ÉCHEC : anonyme peut lire items';
+exception when insufficient_privilege then raise notice 'OK : anonyme refusé sur items'; end $$;
+do $$ begin perform count(*) from public.profiles; raise exception 'ÉCHEC : anonyme peut lire profiles';
+exception when insufficient_privilege then raise notice 'OK : anonyme refusé sur profiles'; end $$;
 reset role;

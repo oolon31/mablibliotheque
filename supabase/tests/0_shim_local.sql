@@ -23,6 +23,3 @@ grant select, insert, update, delete on storage.objects to authenticated;
 grant select on storage.buckets to authenticated;
 grant select on auth.users to authenticated;
 -- Droits par défaut de Supabase sur le schéma public
-grant all on all tables in schema public to anon, authenticated;
-grant usage, select on all sequences in schema public to anon, authenticated;
-alter default privileges in schema public grant all on tables to anon, authenticated;
