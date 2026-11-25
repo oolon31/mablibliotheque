@@ -43,3 +43,7 @@ Les règles d'accès se testent sur PostgreSQL local, sans toucher au serveur r�
 - Les mises à jour ne sont pas en direct : la bibliothèque se rafraîchit à l'ouverture et en tirant vers le bas.
 - La clé de signature de production n'est pas dans le dépôt. Sans elle, il est impossible de publier une mise à jour qui s'installe par-dessus l'application : conservez-la en lieu sûr (voir `android/key.properties.example`).
 - Les versions 2.1.1 et antérieures étaient signées avec une autre clé : il faut les désinstaller avant d'installer la version actuelle. Les données sont dans le cloud et restent accessibles après reconnexion.
+
+## Licence
+
+Projet distribué sous licence MIT : voir le fichier `LICENSE`.
