@@ -50,3 +50,6 @@ app.*.map.json
 
 # Les APK publiés sont dans apk/ ; les builds locaux restent ignorés.
 !apk/*.apk
+
+# Rapports de build Gradle
+android/build/
