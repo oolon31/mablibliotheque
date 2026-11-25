@@ -1,8 +1,11 @@
-import 'package:flutter/widgets.dart';
+
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../state/library.dart';
 import 'cloud_item_repository.dart';
+import 'migration.dart';
 
 /// Une bibliothèque accessible : la mienne, ou une bibliothèque partagée avec moi.
 class LibraryRef {
@@ -24,11 +27,22 @@ class LibraryRef {
   };
 }
 
-/// État de la session : la liste des bibliothèques et celle qui est ouverte.
+/// État de l'application : session, chargement, bibliothèques et bibliothèque ouverte.
+/// Tout l'affichage en dépend, y compris l'écran d'accueil, qui se met à jour seul.
 class AppState extends ChangeNotifier {
+  AppState({required this.navigatorKey});
+
+  final GlobalKey<NavigatorState> navigatorKey;
+
   Library? _current;
   LibraryRef? _currentRef;
   List<LibraryRef> _libraries = [];
+  bool _importChecked = false;
+
+  bool signedIn = false;
+  bool busy = false;
+  bool recovering = false;
+  String? error;
 
   Library? get current => _current;
   LibraryRef? get currentRef => _currentRef;
@@ -36,8 +50,61 @@ class AppState extends ChangeNotifier {
 
   SupabaseClient get _db => Supabase.instance.client;
 
-  /// Charge mes bibliothèques et ouvre la mienne. Lève une exception si le réseau échoue.
-  Future<void> start() async {
+  /// Appelé à chaque changement de session (connexion, déconnexion, rafraîchissement).
+  Future<void> onSession(Session? session) async {
+    if (session == null) {
+      signedIn = false;
+      recovering = false;
+      error = null;
+      _importChecked = false;
+      _current = null;
+      _currentRef = null;
+      _libraries = [];
+      notifyListeners();
+      // Revenir à l'écran de connexion, quelles que soient les pages ouvertes.
+      navigatorKey.currentState?.popUntil((route) => route.isFirst);
+      return;
+    }
+    signedIn = true;
+    notifyListeners();
+    if (_current == null && !busy) await load();
+  }
+
+  void startRecovery() {
+    recovering = true;
+    notifyListeners();
+  }
+
+  /// Le mot de passe a été changé : on reprend la session normale.
+  Future<void> finishRecovery() async {
+    recovering = false;
+    notifyListeners();
+    if (_current == null) await load();
+  }
+
+  /// Charge mes bibliothèques et ouvre la mienne. Affiche l'erreur en cas d'échec.
+  Future<void> load() async {
+    busy = true;
+    error = null;
+    notifyListeners();
+    try {
+      await _start();
+      if (!_importChecked) {
+        _importChecked = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _offerImport());
+      }
+    } catch (e) {
+      final detail = e.toString();
+      error =
+          'Impossible de charger votre bibliothèque.\n\n'
+          'Détail technique : ${detail.length > 300 ? detail.substring(0, 300) : detail}';
+    } finally {
+      busy = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _start() async {
     final user = _db.auth.currentUser;
     if (user == null) throw StateError('Non connecté');
 
@@ -67,7 +134,7 @@ class AppState extends ChangeNotifier {
     await open(mine);
   }
 
-  /// Recharge la liste des bibliothèques partagées (après une invitation acceptée, par exemple).
+  /// Recharge la liste des bibliothèques partagées (après une invitation, par exemple).
   Future<void> refreshLibraries() async {
     final ownerRef = _libraries.firstWhere((l) => l.isOwn);
     final user = _db.auth.currentUser!;
@@ -96,11 +163,42 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clear() {
-    _current = null;
-    _currentRef = null;
-    _libraries = [];
-    notifyListeners();
+  /// Propose d'importer ce qui était enregistré sur le téléphone avant les comptes.
+  Future<void> _offerImport() async {
+    final user = _db.auth.currentUser;
+    final ctx = navigatorKey.currentContext;
+    if (user == null || ctx == null || kIsWeb || _current == null) return;
+    final local = await LocalMigration.pending(user.id);
+    if (local.isEmpty || !ctx.mounted) return;
+
+    final yes = await showDialog<bool>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Importer votre bibliothèque ?'),
+        content: Text(
+          '${local.length} objet${local.length > 1 ? 's' : ''} étaient enregistrés sur ce téléphone '
+          'avant la création des comptes. Voulez-vous les ajouter à votre bibliothèque ?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Non merci')),
+          FilledButton(onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Importer')),
+        ],
+      ),
+    );
+    if (yes == true) {
+      try {
+        await _current!.restore(local, replace: false);
+      } catch (_) {
+        if (ctx.mounted) {
+          ScaffoldMessenger.of(ctx).showSnackBar(
+            const SnackBar(content: Text('Import impossible pour le moment. Réessayez plus tard depuis le menu ⋮.')),
+          );
+        }
+        return;
+      }
+    }
+    await LocalMigration.markDone(user.id);
   }
 
   static String _nameOf(Map<String, dynamic>? owner) {

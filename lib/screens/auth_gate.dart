@@ -1,20 +1,18 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../app.dart';
-import '../cloud/migration.dart';
 import '../cloud/session.dart';
 import '../data/item_repository.dart';
 import '../state/library.dart';
 import 'auth_screen.dart';
-import 'reset_password_screen.dart';
 import 'home_screen.dart';
+import 'reset_password_screen.dart';
 
-/// Racine de l'application. Elle tient l'état de session et la bibliothèque courante
-/// au-dessus de tout le reste, pour que chaque écran y accède, y compris ceux qui s'ouvrent par-dessus.
+/// Racine de l'application. L'état de session vit au-dessus de l'application :
+/// l'écran affiché est choisi par [SessionHome], qui se met à jour à chaque changement.
 class BibliothequeRoot extends StatefulWidget {
   const BibliothequeRoot({super.key});
 
@@ -23,15 +21,11 @@ class BibliothequeRoot extends StatefulWidget {
 }
 
 class _BibliothequeRootState extends State<BibliothequeRoot> {
-  final _app = AppState();
   final _navKey = GlobalKey<NavigatorState>();
+  late final AppState _app = AppState(navigatorKey: _navKey);
   // Bibliothèque vide tant qu'aucune session n'est ouverte.
   final _placeholder = Library(MemoryItemRepository());
   StreamSubscription<AuthState>? _sub;
-  bool _busy = false;
-  bool _recovering = false;
-  bool _importChecked = false;
-  String? _error;
 
   @override
   void initState() {
@@ -39,131 +33,56 @@ class _BibliothequeRootState extends State<BibliothequeRoot> {
     final auth = Supabase.instance.client.auth;
     _sub = auth.onAuthStateChange.listen((state) {
       if (state.event == AuthChangeEvent.passwordRecovery) {
-        // Lien de réinitialisation ouvert : on demande le nouveau mot de passe avant tout le reste.
-        setState(() => _recovering = true);
-        return;
-      }
-      if (state.session == null) {
-        _app.clear();
-        _importChecked = false;
-        if (mounted) setState(() => _error = null);
-      } else if (_app.current == null && !_busy) {
-        _load();
+        _app.startRecovery();
+      } else {
+        _app.onSession(state.session);
       }
     });
-    if (auth.currentSession != null) _load();
+    _app.onSession(auth.currentSession);
   }
 
   @override
   void dispose() {
     _sub?.cancel();
+    _app.dispose();
     super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _busy = true;
-      _error = null;
-    });
-    try {
-      await _app.start();
-      if (!_importChecked) {
-        _importChecked = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) => _offerImport());
-      }
-    } catch (e) {
-      if (mounted) {
-        final detail = e.toString();
-        setState(
-          () => _error =
-              'Impossible de charger votre bibliothèque.\n\n'
-              'Détail technique : ${detail.length > 300 ? detail.substring(0, 300) : detail}',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  /// Propose d'importer ce qui était enregistré sur le téléphone avant les comptes.
-  Future<void> _offerImport() async {
-    final user = Supabase.instance.client.auth.currentUser;
-    final ctx = _navKey.currentContext;
-    if (user == null || ctx == null || kIsWeb || _app.current == null) return;
-    final local = await LocalMigration.pending(user.id);
-    if (local.isEmpty || !ctx.mounted) return;
-
-    final yes = await showDialog<bool>(
-      context: ctx,
-      barrierDismissible: false,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Importer votre bibliothèque ?'),
-        content: Text(
-          '${local.length} objet${local.length > 1 ? 's' : ''} étaient enregistrés sur ce téléphone '
-          'avant la création des comptes. Voulez-vous les ajouter à votre bibliothèque ?',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogCtx, false), child: const Text('Non merci')),
-          FilledButton(onPressed: () => Navigator.pop(dialogCtx, true), child: const Text('Importer')),
-        ],
-      ),
-    );
-    if (yes == true) {
-      try {
-        await _app.current!.restore(local, replace: false);
-      } catch (_) {
-        if (ctx.mounted) {
-          ScaffoldMessenger.of(ctx).showSnackBar(
-            const SnackBar(content: Text('Import impossible pour le moment. Réessayez plus tard depuis le menu ⋮.')),
-          );
-        }
-        return;
-      }
-    }
-    await LocalMigration.markDone(user.id);
   }
 
   @override
   Widget build(BuildContext context) {
-    final signedIn = Supabase.instance.client.auth.currentSession != null;
     return AppScope(
       app: _app,
       child: ListenableBuilder(
         listenable: _app,
-        builder: (context, _) {
-          final library = _app.current;
-          final Widget home;
-          if (_recovering) {
-            home = ResetPasswordScreen(
-              onDone: () {
-                setState(() => _recovering = false);
-                // Le mot de passe est changé : on reprend la session normale.
-                if (_app.current == null) _load();
-              },
-            );
-          } else if (library != null) {
-            home = const HomeScreen();
-          } else if (!signedIn) {
-            home = const AuthScreen();
-          } else {
-            home = _LoadingView(
-              busy: _busy,
-              error: _error,
-              onRetry: _load,
-              onLogout: () => Supabase.instance.client.auth.signOut(),
-            );
-          }
-          return LibraryScope(
-            library: library ?? _placeholder,
-            child: BibliothequeApp(
-              // Une nouvelle clé à chaque changement de session : la pile d'écrans repart de zéro.
-              key: ValueKey('session-${Supabase.instance.client.auth.currentUser?.id ?? 'none'}'),
-              navigatorKey: _navKey,
-              home: home,
-            ),
-          );
-        },
+        builder: (context, _) => LibraryScope(
+          library: _app.current ?? _placeholder,
+          child: BibliothequeApp(navigatorKey: _navKey, home: const SessionHome()),
+        ),
       ),
+    );
+  }
+}
+
+/// Première page de l'application : connexion, chargement, nouveau mot de passe ou accueil.
+class SessionHome extends StatelessWidget {
+  const SessionHome({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    return ListenableBuilder(
+      listenable: app,
+      builder: (context, _) {
+        if (app.recovering) return ResetPasswordScreen(onDone: app.finishRecovery);
+        if (app.current != null) return const HomeScreen();
+        if (!app.signedIn) return const AuthScreen();
+        return _LoadingView(
+          busy: app.busy,
+          error: app.error,
+          onRetry: app.load,
+          onLogout: () => Supabase.instance.client.auth.signOut(),
+        );
+      },
     );
   }
 }
