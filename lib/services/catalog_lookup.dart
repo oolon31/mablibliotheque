@@ -36,20 +36,26 @@ class LookupResult {
   /// Base qui a fourni la fiche (affichée à l'utilisateur).
   final String source;
 
-  LookupResult copyWith({ItemType? type, String? series, String? volume, String? title, String? coverUrl, String? genre}) =>
-      LookupResult(
-        type: type ?? this.type,
-        title: title ?? this.title,
-        creator: creator,
-        year: year,
-        publisher: publisher,
-        series: series ?? this.series,
-        volume: volume ?? this.volume,
-        genre: genre ?? this.genre,
-        format: format,
-        coverUrl: coverUrl ?? this.coverUrl,
-        source: source,
-      );
+  LookupResult copyWith({
+    ItemType? type,
+    String? series,
+    String? volume,
+    String? title,
+    String? coverUrl,
+    String? genre,
+  }) => LookupResult(
+    type: type ?? this.type,
+    title: title ?? this.title,
+    creator: creator,
+    year: year,
+    publisher: publisher,
+    series: series ?? this.series,
+    volume: volume ?? this.volume,
+    genre: genre ?? this.genre,
+    format: format,
+    coverUrl: coverUrl ?? this.coverUrl,
+    source: source,
+  );
 }
 
 /// Erreur réseau : la recherche n'a pas pu aboutir (différent de « rien trouvé »).
@@ -86,10 +92,10 @@ class CatalogLookup {
   Future<LookupResult?> _book(String isbn) async {
     // Les deux bases sont interrogées en parallèle puis combinées.
     final results = await Future.wait([
-      _getJson('https://www.googleapis.com/books/v1/volumes?q=isbn:$isbn').then(
-          (j) => j == null ? null : parseGoogleBooks(j), onError: (Object _) => null),
-      _getJson('https://openlibrary.org/api/books?bibkeys=ISBN:$isbn&format=json&jscmd=data').then(
-          (j) => j == null ? null : parseOpenLibrary(j), onError: (Object _) => null),
+      _getJson('https://www.googleapis.com/books/v1/volumes?q=isbn:$isbn')
+          .then((j) => j == null ? null : parseGoogleBooks(j), onError: (Object _) => null),
+      _getJson('https://openlibrary.org/api/books?bibkeys=ISBN:$isbn&format=json&jscmd=data')
+          .then((j) => j == null ? null : parseOpenLibrary(j), onError: (Object _) => null),
     ]);
     final merged = mergeBookResults(results[0], results[1]);
     if (merged != null) return merged;
@@ -103,7 +109,8 @@ class CatalogLookup {
     final variants = {code, code.replaceFirst(RegExp(r'^0+'), ''), if (code.length == 12) '0$code'};
     final query = variants.map((v) => 'barcode:$v').join(' OR ');
     final json = await _getJson(
-        'https://musicbrainz.org/ws/2/release/?query=${Uri.encodeQueryComponent(query)}&fmt=json&limit=15');
+      'https://musicbrainz.org/ws/2/release/?query=${Uri.encodeQueryComponent(query)}&fmt=json&limit=15',
+    );
     return json == null ? null : parseMusicBrainz(json, code);
   }
 
@@ -192,14 +199,42 @@ String _str(Object? v) => v is String ? composeAccents(v.trim()) : '';
 
 /// Éditeurs dont le catalogue est essentiellement composé de BD et de mangas.
 const _bdPublishers = [
-  'casterman', 'dargaud', 'dupuis', 'lombard', 'glénat', 'glenat', 'delcourt', 'soleil', 'futuropolis',
-  'bamboo', 'humanoïdes', 'humanoides', 'kana', 'pika', 'ki-oon', 'kurokawa', 'urban comics', 'panini comics',
-  'fluide glacial', 'rue de sèvres', 'marsu', 'grand angle', 'vents d\'ouest', 'dupuis jeunesse',
+  'casterman',
+  'dargaud',
+  'dupuis',
+  'lombard',
+  'glénat',
+  'glenat',
+  'delcourt',
+  'soleil',
+  'futuropolis',
+  'bamboo',
+  'humanoïdes',
+  'humanoides',
+  'kana',
+  'pika',
+  'ki-oon',
+  'kurokawa',
+  'urban comics',
+  'panini comics',
+  'fluide glacial',
+  'rue de sèvres',
+  'marsu',
+  'grand angle',
+  'vents d\'ouest',
+  'dupuis jeunesse',
 ];
 
-bool _hasComicSubject(Iterable<String> subjects) => subjects.map((s) => s.toLowerCase()).any((s) =>
-    s.contains('comic') || s.contains('graphic novel') || s.contains('bandes dessinées') ||
-    s.contains('bande dessinée') || s.contains('manga'));
+bool _hasComicSubject(Iterable<String> subjects) => subjects
+    .map((s) => s.toLowerCase())
+    .any(
+      (s) =>
+          s.contains('comic') ||
+          s.contains('graphic novel') ||
+          s.contains('bandes dessinées') ||
+          s.contains('bande dessinée') ||
+          s.contains('manga'),
+    );
 
 bool _isBdPublisher(String publisher) {
   final p = publisher.toLowerCase();
@@ -246,9 +281,10 @@ String _genreFrom(Iterable<String> categories) {
 
 /// « Les Aventures de Tintin - Tome 17 - On a marché sur la lune » → série, tome, titre.
 ({String series, String volume, String title})? splitSeriesTitle(String title) {
-  final m = RegExp(r'^(.+?)\s*[-–—:,.]\s*(?:tome|t\.|vol\.?|volume|n°)\s*(\d+)\s*(?:[-–—:,.]\s*(.*))?$',
-          caseSensitive: false)
-      .firstMatch(title.trim());
+  final m = RegExp(
+    r'^(.+?)\s*[-–—:,.]\s*(?:tome|t\.|vol\.?|volume|n°)\s*(\d+)\s*(?:[-–—:,.]\s*(.*))?$',
+    caseSensitive: false,
+  ).firstMatch(title.trim());
   if (m == null) return null;
   final rest = (m.group(3) ?? '').trim();
   return (series: m.group(1)!.trim(), volume: m.group(2)!, title: rest.isEmpty ? title.trim() : rest);
@@ -311,8 +347,7 @@ LookupResult? parseOpenLibrary(Map<String, dynamic> json) {
   // a « Comics & graphic novels » à cause d'une adaptation) : un sujet BD ne suffit que pour
   // un ouvrage court.
   final pages = book['number_of_pages'];
-  final isBd = _isBdPublisher(publisher) ||
-      (_hasComicSubject(subjects) && pages is int && pages > 0 && pages <= 120);
+  final isBd = _isBdPublisher(publisher) || (_hasComicSubject(subjects) && pages is int && pages > 0 && pages <= 120);
   var result = LookupResult(
     type: isBd ? ItemType.bd : ItemType.livre,
     title: title,

@@ -12,10 +12,10 @@ Map<String, dynamic> fixture(String name) =>
     jsonDecode(File('test/fixtures/$name.json').readAsStringSync()) as Map<String, dynamic>;
 
 http.Response jsonResponse(String name) => http.Response.bytes(
-      utf8.encode(File('test/fixtures/$name.json').readAsStringSync()),
-      200,
-      headers: {'content-type': 'application/json; charset=utf-8'},
-    );
+  utf8.encode(File('test/fixtures/$name.json').readAsStringSync()),
+  200,
+  headers: {'content-type': 'application/json; charset=utf-8'},
+);
 
 void main() {
   group('codes-barres', () {
@@ -125,11 +125,13 @@ void main() {
     }
 
     test('un ISBN interroge les bases de livres', () async {
-      final l = lookupWith((u) => switch (u.host) {
-            'www.googleapis.com' => jsonResponse('googlebooks_empty'),
-            'openlibrary.org' => jsonResponse('openlibrary_9782070360024'),
-            _ => http.Response('inattendu', 500),
-          });
+      final l = lookupWith(
+        (u) => switch (u.host) {
+          'www.googleapis.com' => jsonResponse('googlebooks_empty'),
+          'openlibrary.org' => jsonResponse('openlibrary_9782070360024'),
+          _ => http.Response('inattendu', 500),
+        },
+      );
       final r = await l.lookup('978-2-07-036002-4');
       expect(r!.creator, 'Albert Camus');
       expect(r.source, 'Open Library');
@@ -148,37 +150,43 @@ void main() {
 
     test('MusicBrainz occupé : une nouvelle tentative réussit', () async {
       var calls = 0;
-      final l = lookupWith((u) => ++calls == 1
-          ? http.Response('{"error":"busy"}', 503)
-          : jsonResponse('musicbrainz_196587737313'));
+      final l = lookupWith(
+        (u) => ++calls == 1 ? http.Response('{"error":"busy"}', 503) : jsonResponse('musicbrainz_196587737313'),
+      );
       expect((await l.lookup('196587737313'))!.title, 'Random Access Memories');
       expect(calls, 2);
     });
 
     test('MusicBrainz toujours occupé : erreur explicite', () async {
       final l = lookupWith((u) => http.Response('{"error":"busy"}', 503));
-      expect(() => l.lookup('196587737313'),
-          throwsA(isA<LookupException>().having((e) => e.message, 'message', contains('occupé'))));
+      expect(
+        () => l.lookup('196587737313'),
+        throwsA(isA<LookupException>().having((e) => e.message, 'message', contains('occupé'))),
+      );
     });
 
     test('code inconnu : null, pas d\'erreur', () async {
-      final l = lookupWith((u) => switch (u.host) {
-            'www.googleapis.com' => jsonResponse('googlebooks_empty'),
-            'openlibrary.org' => http.Response('{}', 200),
-            'musicbrainz.org' => http.Response('{"releases": []}', 200),
-            _ => http.Response('', 404),
-          });
+      final l = lookupWith(
+        (u) => switch (u.host) {
+          'www.googleapis.com' => jsonResponse('googlebooks_empty'),
+          'openlibrary.org' => http.Response('{}', 200),
+          'musicbrainz.org' => http.Response('{"releases": []}', 200),
+          _ => http.Response('', 404),
+        },
+      );
       expect(await l.lookup('9782070360024'), isNull);
     });
 
     test('téléchargement de couverture : refuse les non-images et les pixels vides', () async {
       final big = List<int>.filled(5000, 1);
-      final l = lookupWith((u) => switch (u.path) {
-            '/ok.jpg' => http.Response.bytes(big, 200, headers: {'content-type': 'image/jpeg'}),
-            '/pixel.gif' => http.Response.bytes([1, 2, 3], 200, headers: {'content-type': 'image/gif'}),
-            '/page.html' => http.Response.bytes(big, 200, headers: {'content-type': 'text/html'}),
-            _ => http.Response('', 404),
-          });
+      final l = lookupWith(
+        (u) => switch (u.path) {
+          '/ok.jpg' => http.Response.bytes(big, 200, headers: {'content-type': 'image/jpeg'}),
+          '/pixel.gif' => http.Response.bytes([1, 2, 3], 200, headers: {'content-type': 'image/gif'}),
+          '/page.html' => http.Response.bytes(big, 200, headers: {'content-type': 'text/html'}),
+          _ => http.Response('', 404),
+        },
+      );
       expect((await l.downloadImage('https://x.org/ok.jpg'))!.length, 5000);
       expect(await l.downloadImage('https://x.org/pixel.gif'), isNull);
       expect(await l.downloadImage('https://x.org/page.html'), isNull);
@@ -187,8 +195,10 @@ void main() {
 
     test('hors connexion : erreur explicite', () async {
       final l = CatalogLookup(client: MockClient((_) => throw const SocketException('offline')));
-      expect(() => l.lookup('9782070360024'),
-          throwsA(isA<LookupException>().having((e) => e.message, 'message', 'pas de connexion internet')));
+      expect(
+        () => l.lookup('9782070360024'),
+        throwsA(isA<LookupException>().having((e) => e.message, 'message', 'pas de connexion internet')),
+      );
       expect(() => l.lookup('196587737313'), throwsA(isA<LookupException>()));
     });
   });

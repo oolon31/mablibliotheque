@@ -38,18 +38,19 @@ class ItemDetailScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(item.type.label),
         actions: [
-          IconButton(
-            tooltip: 'Modifier',
-            icon: const Icon(Icons.edit_outlined),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => ItemFormScreen(item: item),
-            )),
-          ),
-          IconButton(
-            tooltip: 'Supprimer',
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _confirmDelete(context, library, item),
-          ),
+          if (library.canEdit)
+            IconButton(
+              tooltip: 'Modifier',
+              icon: const Icon(Icons.edit_outlined),
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => ItemFormScreen(item: item))),
+            ),
+          if (library.canEdit)
+            IconButton(
+              tooltip: 'Supprimer',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _confirmDelete(context, library, item),
+            ),
         ],
       ),
       body: ListView(
@@ -58,20 +59,33 @@ class ItemDetailScreen extends StatelessWidget {
           Center(child: Cover(item: item, width: 140, radius: 12)),
           const SizedBox(height: 16),
           if (item.seriesLabel.isNotEmpty)
-            Text(item.seriesLabel,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleSmall?.copyWith(color: typeColor(context, item.type))),
+            Text(
+              item.seriesLabel,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleSmall?.copyWith(color: typeColor(context, item.type)),
+            ),
           Text(item.title, textAlign: TextAlign.center, style: theme.textTheme.headlineSmall),
           if (item.creator.isNotEmpty)
-            Text(item.creator,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+            Text(
+              item.creator,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.titleMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
           if (item.rating > 0) ...[
             const SizedBox(height: 8),
             Center(child: RatingStars(rating: item.rating, size: 24)),
           ],
           const SizedBox(height: 16),
-          if (item.wishlist)
+          if (!library.canEdit && item.isLoaned && !item.wishlist)
+            Card(
+              margin: EdgeInsets.zero,
+              color: theme.colorScheme.errorContainer,
+              child: ListTile(
+                leading: Icon(Icons.outbox, color: theme.colorScheme.onErrorContainer),
+                title: Text('Prêté', style: TextStyle(color: theme.colorScheme.onErrorContainer)),
+              ),
+            )
+          else if (item.wishlist && library.canEdit)
             FilledButton.icon(
               icon: const Icon(Icons.shopping_bag_outlined),
               label: const Text('Je l\'ai acquis'),
@@ -83,22 +97,26 @@ class ItemDetailScreen extends StatelessWidget {
                 }
               },
             )
-          else
+          else if (library.canEdit)
             _LoanCard(item: item),
           const SizedBox(height: 16),
           Card(
             margin: EdgeInsets.zero,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Column(children: [
-                for (final (label, value) in infos)
-                  ListTile(
-                    dense: true,
-                    title: Text(label,
-                        style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
-                    subtitle: Text(value, style: theme.textTheme.bodyLarge),
-                  ),
-              ]),
+              child: Column(
+                children: [
+                  for (final (label, value) in infos)
+                    ListTile(
+                      dense: true,
+                      title: Text(
+                        label,
+                        style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                      subtitle: Text(value, style: theme.textTheme.bodyLarge),
+                    ),
+                ],
+              ),
             ),
           ),
           if (item.notes.isNotEmpty) ...[
@@ -160,10 +178,7 @@ class _LoanCard extends StatelessWidget {
         subtitle: since.isEmpty
             ? null
             : Text(since.trim(), style: TextStyle(color: theme.colorScheme.onErrorContainer)),
-        trailing: TextButton(
-          onPressed: () => library.giveBack(item),
-          child: const Text('Rendu'),
-        ),
+        trailing: TextButton(onPressed: () => library.giveBack(item), child: const Text('Rendu')),
       ),
     );
   }
@@ -183,22 +198,28 @@ Future<String?> askBorrower(BuildContext context) {
 
       return AlertDialog(
         title: const Text('Prêter à…'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-            controller: controller,
-            autofocus: true,
-            textCapitalization: TextCapitalization.words,
-            decoration: const InputDecoration(labelText: 'Nom'),
-            onSubmitted: (_) => submit(),
-          ),
-          if (known.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            Wrap(spacing: 8, runSpacing: 4, children: [
-              for (final name in known)
-                ActionChip(label: Text(name), onPressed: () => Navigator.pop(ctx, name)),
-            ]),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(labelText: 'Nom'),
+              onSubmitted: (_) => submit(),
+            ),
+            if (known.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  for (final name in known) ActionChip(label: Text(name), onPressed: () => Navigator.pop(ctx, name)),
+                ],
+              ),
+            ],
           ],
-        ]),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
           FilledButton(onPressed: submit, child: const Text('Prêter')),

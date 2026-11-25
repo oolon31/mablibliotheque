@@ -50,7 +50,11 @@ bool isIsbn(String code) {
 bool isPlausibleCode(String raw) {
   final c = cleanCode(raw);
   if (isbn10To13(c) != null) return true;
-  return switch (c.length) { 8 || 12 => true, 13 => _validEan13(c), _ => false };
+  return switch (c.length) {
+    8 || 12 => true,
+    13 => _validEan13(c),
+    _ => false,
+  };
 }
 
 /// Livres et BD ont un ISBN ; le reste est supposé être un disque.

@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../cloud/covers.dart';
 import '../models/item.dart';
 
 /// Couleur associée à chaque type, dérivée du thème.
@@ -15,9 +16,9 @@ Color typeColor(BuildContext context, ItemType type) {
     ItemType.vinyle => scheme.primary,
     ItemType.livre => scheme.tertiary,
     ItemType.bd => _bdColors.putIfAbsent(
-        scheme.brightness,
-        () => ColorScheme.fromSeed(seedColor: const Color(0xFF2F6A8C), brightness: scheme.brightness).primary,
-      ),
+      scheme.brightness,
+      () => ColorScheme.fromSeed(seedColor: const Color(0xFF2F6A8C), brightness: scheme.brightness).primary,
+    ),
   };
 }
 
@@ -36,17 +37,38 @@ class Cover extends StatelessWidget {
     // Pochette de vinyle carrée, livre et BD au format portrait.
     final height = item.type == ItemType.vinyle ? width : width * 1.4;
     final path = item.coverPath;
+    final color = typeColor(context, item.type);
+    Widget placeholder() => Container(
+      width: width,
+      height: height,
+      color: color.withValues(alpha: 0.15),
+      alignment: Alignment.center,
+      child: Icon(item.type.icon, color: color, size: width * 0.5),
+    );
+
     Widget child;
-    if (!kIsWeb && path != null && File(path).existsSync()) {
-      child = Image.file(File(path), fit: BoxFit.cover, width: width, height: height);
+    if (path == null) {
+      child = placeholder();
+    } else if (isLocalCover(path)) {
+      // Image choisie sur ce téléphone, pas encore envoyée.
+      child = File(path).existsSync()
+          ? Image.file(File(path), fit: BoxFit.cover, width: width, height: height)
+          : placeholder();
     } else {
-      final color = typeColor(context, item.type);
-      child = Container(
-        width: width,
-        height: height,
-        color: color.withValues(alpha: 0.15),
-        alignment: Alignment.center,
-        child: Icon(item.type.icon, color: color, size: width * 0.5),
+      // Image hébergée : URL temporaire obtenue auprès du serveur.
+      child = FutureBuilder<String?>(
+        future: CloudCovers.url(path),
+        builder: (context, snap) {
+          final url = snap.data;
+          if (url == null) return placeholder();
+          return Image.network(
+            url,
+            fit: BoxFit.cover,
+            width: width,
+            height: height,
+            errorBuilder: (context, error, stackTrace) => placeholder(),
+          );
+        },
       );
     }
     return ClipRRect(borderRadius: BorderRadius.circular(radius), child: child);
@@ -55,11 +77,7 @@ class Cover extends StatelessWidget {
 
 /// Copie une image choisie (appareil photo ou galerie) dans le dossier de l'application.
 Future<String?> pickCover(ImageSource source) async {
-  final picked = await ImagePicker().pickImage(
-    source: source,
-    maxWidth: 1200,
-    imageQuality: 85,
-  );
+  final picked = await ImagePicker().pickImage(source: source, maxWidth: 1200, imageQuality: 85);
   if (picked == null) return null;
   return saveCoverBytes(await File(picked.path).readAsBytes(), p.extension(picked.path));
 }

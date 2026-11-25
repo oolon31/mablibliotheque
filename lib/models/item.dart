@@ -86,6 +86,7 @@ class Item {
     this.notes = '',
     this.coverPath,
     required this.createdAt,
+    this.onLoanHidden = false,
   });
 
   final int? id;
@@ -112,7 +113,11 @@ class Item {
   final String? coverPath;
   final DateTime createdAt;
 
-  bool get isLoaned => loanedTo != null && loanedTo!.isNotEmpty;
+  /// Vrai quand l'objet est prêté mais que le nom de l'emprunteur n'est pas visible (bibliothèque partagée en lecture).
+  /// Jamais sauvegardé : ne vient que du serveur.
+  final bool onLoanHidden;
+
+  bool get isLoaned => (loanedTo != null && loanedTo!.isNotEmpty) || onLoanHidden;
 
   /// « Série · T. 3 », ou une chaîne vide.
   String get seriesLabel {
@@ -140,6 +145,7 @@ class Item {
     String? notes,
     Object? coverPath = _unset,
     DateTime? createdAt,
+    bool? onLoanHidden,
   }) {
     return Item(
       id: identical(id, _unset) ? this.id : id as int?,
@@ -161,30 +167,31 @@ class Item {
       notes: notes ?? this.notes,
       coverPath: identical(coverPath, _unset) ? this.coverPath : coverPath as String?,
       createdAt: createdAt ?? this.createdAt,
+      onLoanHidden: onLoanHidden ?? this.onLoanHidden,
     );
   }
 
   Map<String, Object?> toMap() => {
-        'id': id,
-        'type': type.name,
-        'title': title,
-        'creator': creator,
-        'year': year,
-        'publisher': publisher,
-        'series': series,
-        'volume': volume,
-        'genre': genre,
-        'format': format,
-        'identifier': identifier,
-        'condition': condition?.name,
-        'rating': rating,
-        'wishlist': wishlist ? 1 : 0,
-        'loaned_to': loanedTo,
-        'loan_date': loanDate?.millisecondsSinceEpoch,
-        'notes': notes,
-        'cover_path': coverPath,
-        'created_at': createdAt.millisecondsSinceEpoch,
-      };
+    'id': id,
+    'type': type.name,
+    'title': title,
+    'creator': creator,
+    'year': year,
+    'publisher': publisher,
+    'series': series,
+    'volume': volume,
+    'genre': genre,
+    'format': format,
+    'identifier': identifier,
+    'condition': condition?.name,
+    'rating': rating,
+    'wishlist': wishlist ? 1 : 0,
+    'loaned_to': loanedTo,
+    'loan_date': loanDate?.millisecondsSinceEpoch,
+    'notes': notes,
+    'cover_path': coverPath,
+    'created_at': createdAt.millisecondsSinceEpoch,
+  };
 
   factory Item.fromMap(Map<String, Object?> m) {
     final conditionName = m['condition'] as String?;

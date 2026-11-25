@@ -65,11 +65,13 @@ Future<LookupOutcome?> lookupWithProgress(BuildContext context, String code) asy
     context: context,
     barrierDismissible: false,
     builder: (ctx) => AlertDialog(
-      content: Row(children: [
-        const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
-        const SizedBox(width: 20),
-        Expanded(child: Text('Recherche du code\n$code…')),
-      ]),
+      content: Row(
+        children: [
+          const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
+          const SizedBox(width: 20),
+          Expanded(child: Text('Recherche du code\n$code…')),
+        ],
+      ),
       actions: [
         TextButton(
           onPressed: () {
@@ -131,9 +133,11 @@ Future<void> scanAndAdd(BuildContext context, {bool wishlist = false}) async {
 
   final outcome = await lookupWithProgress(context, code);
   if (outcome == null || !context.mounted) return;
-  nav.push(MaterialPageRoute<void>(
-    builder: (_) => ItemFormScreen(draft: draftFromLookup(code, outcome, wishlist: wishlist)),
-  ));
+  nav.push(
+    MaterialPageRoute<void>(
+      builder: (_) => ItemFormScreen(draft: draftFromLookup(code, outcome, wishlist: wishlist)),
+    ),
+  );
   messenger.showSnackBar(SnackBar(content: Text(outcome.message()), duration: const Duration(seconds: 5)));
 }
 
@@ -146,13 +150,18 @@ Future<_Duplicate?> _askDuplicate(BuildContext context, Item existing) {
     builder: (ctx) => AlertDialog(
       icon: const Icon(Icons.info_outline),
       title: const Text('Vous l\'avez déjà'),
-      content: Row(children: [
-        Cover(item: existing, width: 48),
-        const SizedBox(width: 16),
-        Expanded(child: Text('« ${existing.title} » est déjà $where.')),
-      ]),
+      content: Row(
+        children: [
+          Cover(item: existing, width: 48),
+          const SizedBox(width: 16),
+          Expanded(child: Text('« ${existing.title} » est déjà $where.')),
+        ],
+      ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, _Duplicate.addAnyway), child: const Text('Ajouter un exemplaire')),
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, _Duplicate.addAnyway),
+          child: const Text('Ajouter un exemplaire'),
+        ),
         FilledButton(onPressed: () => Navigator.pop(ctx, _Duplicate.open), child: const Text('Voir la fiche')),
       ],
     ),

@@ -32,8 +32,10 @@ void main() {
 
   test('collection et envies sont séparées', () {
     expect(filterItems(items).any((i) => i.wishlist), isFalse);
-    expect(filterItems(items, wishlist: true).map((i) => i.title),
-        containsAll(['Random Access Memories', 'Les Furtifs']));
+    expect(
+      filterItems(items, wishlist: true).map((i) => i.title),
+      containsAll(['Random Access Memories', 'Les Furtifs']),
+    );
   });
 
   test('le filtre par type fonctionne', () {

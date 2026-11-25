@@ -60,29 +60,44 @@ void main() {
     });
 
     test('un fichier quelconque est refusé', () {
-      expect(() => decodeBackup(utf8.encode('bonjour')),
-          throwsA(isA<BackupException>().having((e) => e.message, 'm', contains('n\'est pas une sauvegarde'))));
+      expect(
+        () => decodeBackup(utf8.encode('bonjour')),
+        throwsA(isA<BackupException>().having((e) => e.message, 'm', contains('n\'est pas une sauvegarde'))),
+      );
       final otherZip = ZipEncoder().encodeBytes(Archive()..addFile(ArchiveFile.string('autre.txt', 'x')));
       expect(() => decodeBackup(otherZip), throwsA(isA<BackupException>()));
-      expect(() => decodeBackup(zipWith('{"format": "autre", "version": 1, "items": []}')),
-          throwsA(isA<BackupException>()));
+      expect(
+        () => decodeBackup(zipWith('{"format": "autre", "version": 1, "items": []}')),
+        throwsA(isA<BackupException>()),
+      );
     });
 
     test('une sauvegarde d\'une version future est refusée avec un message clair', () {
-      expect(() => decodeBackup(zipWith('{"format": "ma-bibliotheque", "version": 99, "items": []}')),
-          throwsA(isA<BackupException>().having((e) => e.message, 'm', contains('plus récente'))));
+      expect(
+        () => decodeBackup(zipWith('{"format": "ma-bibliotheque", "version": 99, "items": []}')),
+        throwsA(isA<BackupException>().having((e) => e.message, 'm', contains('plus récente'))),
+      );
     });
 
     test('un objet endommagé est signalé avec son numéro', () {
       final ok = jsonEncode(comparable(items[0]));
       expect(
-          () => decodeBackup(zipWith('{"format": "ma-bibliotheque", "version": 1, "items": [$ok, {"title": 3}]}')),
-          throwsA(isA<BackupException>().having((e) => e.message, 'm', contains('n° 2'))));
+        () => decodeBackup(zipWith('{"format": "ma-bibliotheque", "version": 1, "items": [$ok, {"title": 3}]}')),
+        throwsA(isA<BackupException>().having((e) => e.message, 'm', contains('n° 2'))),
+      );
     });
 
     test('une couverture manquante n\'empêche pas la restauration', () {
       final map = comparable(items[0])..['cover'] = 'covers/1.jpg';
-      final back = decodeBackup(zipWith(jsonEncode({'format': 'ma-bibliotheque', 'version': 1, 'items': [map]})));
+      final back = decodeBackup(
+        zipWith(
+          jsonEncode({
+            'format': 'ma-bibliotheque',
+            'version': 1,
+            'items': [map],
+          }),
+        ),
+      );
       expect(back.entries.single.item.title, items[0].title);
       expect(back.entries.single.cover, isNull);
     });
@@ -97,8 +112,14 @@ void main() {
     });
 
     test('sans code : titre, auteur et tome, sans tenir compte des accents', () {
-      final a = Item(type: ItemType.bd, title: 'Astérix le Gaulois', creator: 'Goscinny', series: 'Astérix',
-          volume: '1', createdAt: DateTime(2020));
+      final a = Item(
+        type: ItemType.bd,
+        title: 'Astérix le Gaulois',
+        creator: 'Goscinny',
+        series: 'Astérix',
+        volume: '1',
+        createdAt: DateTime(2020),
+      );
       expect(isSameItem(a, a.copyWith(title: 'ASTERIX LE GAULOIS ')), isTrue);
       expect(isSameItem(a, a.copyWith(volume: '2')), isFalse);
       expect(isSameItem(a, a.copyWith(type: ItemType.livre)), isFalse);

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
@@ -8,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 
 import '../models/item.dart';
+import '../cloud/covers.dart';
 import '../services/backup.dart';
 import '../state/library.dart';
 import '../widgets/cover.dart';
@@ -21,11 +21,13 @@ Future<T> _withProgress<T>(BuildContext context, String message, Future<T> Funct
     builder: (_) => PopScope(
       canPop: false,
       child: AlertDialog(
-        content: Row(children: [
-          const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
-          const SizedBox(width: 20),
-          Expanded(child: Text(message)),
-        ]),
+        content: Row(
+          children: [
+            const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3)),
+            const SizedBox(width: 20),
+            Expanded(child: Text(message)),
+          ],
+        ),
       ),
     ),
   );
@@ -40,17 +42,15 @@ Future<T> _withProgress<T>(BuildContext context, String message, Future<T> Funct
 Future<List<BackupEntry>> _entriesFor(Iterable<Item> items) async {
   final entries = <BackupEntry>[];
   for (final item in items) {
-    List<int>? cover;
     final path = item.coverPath;
-    if (!kIsWeb && path != null) {
-      final f = File(path);
-      if (await f.exists()) cover = await f.readAsBytes();
-    }
-    entries.add(BackupEntry(
-      item.copyWith(id: null, coverPath: null),
-      cover: cover,
-      coverExtension: path == null || p.extension(path).isEmpty ? '.jpg' : p.extension(path),
-    ));
+    final cover = await CloudCovers.read(path);
+    entries.add(
+      BackupEntry(
+        item.copyWith(id: null, coverPath: null),
+        cover: cover,
+        coverExtension: path == null || p.extension(path).isEmpty ? '.jpg' : p.extension(path),
+      ),
+    );
   }
   return entries;
 }
@@ -81,9 +81,7 @@ Future<void> exportBackup(BuildContext context) async {
       dialogTitle: 'Enregistrer la sauvegarde',
     );
     if (uri == null && !kIsWeb) return; // L'utilisateur a annulé.
-    messenger.showSnackBar(SnackBar(
-      content: Text('Sauvegarde enregistrée : ${_plural(count, 'objet', 'objets')}.'),
-    ));
+    messenger.showSnackBar(SnackBar(content: Text('Sauvegarde enregistrée : ${_plural(count, 'objet', 'objets')}.')));
   } catch (e) {
     messenger.showSnackBar(SnackBar(content: Text('La sauvegarde a échoué : $e')));
   }
@@ -107,7 +105,10 @@ Future<void> importBackup(BuildContext context) async {
   BackupContents contents;
   try {
     contents = await _withProgress(
-        context, 'Lecture de la sauvegarde…', () async => compute(decodeBackup, await file!.readAsBytes()));
+      context,
+      'Lecture de la sauvegarde…',
+      () async => compute(decodeBackup, await file!.readAsBytes()),
+    );
   } on BackupException catch (e) {
     if (context.mounted) await _showError(context, e.message);
     return;
@@ -126,8 +127,11 @@ Future<void> importBackup(BuildContext context) async {
   if (mode == null || !context.mounted) return;
 
   if (mode == _Mode.merge && toAdd.isEmpty) {
-    messenger.showSnackBar(const SnackBar(
-        content: Text('Rien de nouveau : tous les objets de la sauvegarde sont déjà dans votre bibliothèque.')));
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Rien de nouveau : tous les objets de la sauvegarde sont déjà dans votre bibliothèque.'),
+      ),
+    );
     return;
   }
 
@@ -137,45 +141,50 @@ Future<void> importBackup(BuildContext context) async {
       final previous = await _entriesFor(library.items);
       if (!context.mounted) return;
       await _withProgress(context, 'Restauration…', () => _apply(library, contents.entries, replace: true));
-      messenger.showSnackBar(SnackBar(
-        duration: const Duration(seconds: 8),
-        content: Text('Bibliothèque restaurée : ${_plural(contents.entries.length, 'objet', 'objets')}.'),
-        action: previous.isEmpty
-            ? null
-            : SnackBarAction(label: 'Annuler', onPressed: () => _apply(library, previous, replace: true)),
-      ));
+      messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text('Bibliothèque restaurée : ${_plural(contents.entries.length, 'objet', 'objets')}.'),
+          action: previous.isEmpty
+              ? null
+              : SnackBarAction(label: 'Annuler', onPressed: () => _apply(library, previous, replace: true)),
+        ),
+      );
     } else {
       if (!context.mounted) return;
       final added = await _withProgress(context, 'Ajout…', () => _apply(library, toAdd, replace: false));
-      messenger.showSnackBar(SnackBar(
-        duration: const Duration(seconds: 8),
-        content: Text('${_plural(added.length, 'objet ajouté', 'objets ajoutés')} à votre bibliothèque.'),
-        action: SnackBarAction(
-          label: 'Annuler',
-          onPressed: () async {
-            for (final item in added) {
-              await library.remove(item);
-              await deleteCoverFile(item.coverPath);
-            }
-          },
+      messenger.showSnackBar(
+        SnackBar(
+          duration: const Duration(seconds: 8),
+          content: Text('${_plural(added.length, 'objet ajouté', 'objets ajoutés')} à votre bibliothèque.'),
+          action: SnackBarAction(
+            label: 'Annuler',
+            onPressed: () async {
+              for (final item in added) {
+                await library.remove(item);
+                await deleteCoverFile(item.coverPath);
+              }
+            },
+          ),
         ),
-      ));
+      );
     }
   } catch (e) {
-    if (context.mounted) await _showError(context, 'La restauration a échoué, votre bibliothèque n\'a pas changé.\n($e)');
+    if (context.mounted) {
+      await _showError(context, 'La restauration a échoué, votre bibliothèque n\'a pas changé.\n($e)');
+    }
   }
 }
 
 /// Écrit les couvertures puis enregistre les objets. En cas d'échec, rien ne change.
 Future<List<Item>> _apply(Library library, List<BackupEntry> entries, {required bool replace}) async {
-  final oldCovers = replace ? library.items.map((i) => i.coverPath).whereType<String>().toList() : <String>[];
   final written = <String>[];
   final List<Item> saved;
   try {
     final items = <Item>[];
     for (final e in entries) {
       String? path;
-      if (!kIsWeb && e.cover != null) {
+      if (e.cover != null) {
         path = await saveCoverBytes(e.cover!, e.coverExtension);
         written.add(path);
       }
@@ -187,10 +196,6 @@ Future<List<Item>> _apply(Library library, List<BackupEntry> entries, {required 
       await deleteCoverFile(w);
     }
     rethrow;
-  }
-  // Les anciennes images ne sont supprimées qu'une fois la restauration réussie.
-  for (final c in oldCovers) {
-    await deleteCoverFile(c);
   }
   return saved;
 }
@@ -209,22 +214,32 @@ Future<_Mode?> _askMode(BuildContext context, BackupContents c, {required int cu
     builder: (ctx) => AlertDialog(
       icon: const Icon(Icons.restore),
       title: const Text('Restaurer la sauvegarde ?'),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Sauvegarde du ${DateFormat.yMMMMd('fr').add_Hm().format(c.createdAt)}',
-            style: theme.textTheme.titleSmall),
-        const SizedBox(height: 4),
-        Text('${_plural(c.entries.length, 'objet', 'objets')} : ${parts.join(' · ')}'),
-        if (current > 0) ...[
-          const SizedBox(height: 16),
-          Text(newCount == 0
-              ? 'Tous ces objets sont déjà dans votre bibliothèque : une fusion n\'ajouterait rien.'
-              : 'Fusionner ajoute ${_plural(newCount, 'objet', 'objets')} à votre bibliothèque'
-                  '${already > 0 ? ' (${_plural(already, 'est déjà présent', 'sont déjà présents')})' : ''}.'),
-          const SizedBox(height: 8),
-          Text('Remplacer efface vos ${_plural(current, 'objet actuel', 'objets actuels')} '
-              'et les remplace par la sauvegarde.'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sauvegarde du ${DateFormat.yMMMMd('fr').add_Hm().format(c.createdAt)}',
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(height: 4),
+          Text('${_plural(c.entries.length, 'objet', 'objets')} : ${parts.join(' · ')}'),
+          if (current > 0) ...[
+            const SizedBox(height: 16),
+            Text(
+              newCount == 0
+                  ? 'Tous ces objets sont déjà dans votre bibliothèque : une fusion n\'ajouterait rien.'
+                  : 'Fusionner ajoute ${_plural(newCount, 'objet', 'objets')} à votre bibliothèque'
+                        '${already > 0 ? ' (${_plural(already, 'est déjà présent', 'sont déjà présents')})' : ''}.',
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Remplacer efface vos ${_plural(current, 'objet actuel', 'objets actuels')} '
+              'et les remplace par la sauvegarde.',
+            ),
+          ],
         ],
-      ]),
+      ),
       actions: current == 0
           ? [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
@@ -248,8 +263,10 @@ Future<_Mode?> _askMode(BuildContext context, BackupContents c, {required int cu
     context: context,
     builder: (ctx) => AlertDialog(
       title: const Text('Remplacer toute la bibliothèque ?'),
-      content: Text('Vos ${_plural(current, 'objet actuel sera supprimé', 'objets actuels seront supprimés')}. '
-          'Vous pourrez annuler juste après, depuis le message en bas de l\'écran.'),
+      content: Text(
+        'Vos ${_plural(current, 'objet actuel sera supprimé', 'objets actuels seront supprimés')}. '
+        'Vous pourrez annuler juste après, depuis le message en bas de l\'écran.',
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Annuler')),
         FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Remplacer')),
@@ -260,11 +277,11 @@ Future<_Mode?> _askMode(BuildContext context, BackupContents c, {required int cu
 }
 
 Future<void> _showError(BuildContext context, String message) => showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        icon: const Icon(Icons.error_outline),
-        title: const Text('Restauration impossible'),
-        content: Text(message),
-        actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
-      ),
-    );
+  context: context,
+  builder: (ctx) => AlertDialog(
+    icon: const Icon(Icons.error_outline),
+    title: const Text('Restauration impossible'),
+    content: Text(message),
+    actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('OK'))],
+  ),
+);
