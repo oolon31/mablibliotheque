@@ -8,6 +8,7 @@ import '../widgets/cover.dart';
 import 'item_detail_screen.dart';
 import 'item_form_screen.dart';
 import 'scanner_screen.dart';
+import 'title_search_screen.dart';
 
 /// Résultat d'une recherche : la fiche (si trouvée), la couverture téléchargée, et un message.
 class LookupOutcome {
@@ -131,15 +132,53 @@ Future<void> scanAndAdd(BuildContext context, {bool wishlist = false}) async {
     }
   }
 
-  final outcome = await lookupWithProgress(context, code);
+  var outcome = await lookupWithProgress(context, code);
   if (outcome == null || !context.mounted) return;
+  var finalCode = code;
+
+  // Code non reconnu : proposer une recherche par titre et auteur.
+  if (outcome.result == null && outcome.error == null) {
+    final wantSearch = await _askTitleSearch(context);
+    if (wantSearch == true && context.mounted) {
+      final picked = await nav.push<TitleMatch>(MaterialPageRoute(builder: (_) => const TitleSearchScreen()));
+      if (picked != null) {
+        final isbn = picked.isbn;
+        String? cover;
+        if (isbn != null) {
+          final bytes = await CatalogLookup().downloadImage(
+            'https://covers.openlibrary.org/b/isbn/$isbn-L.jpg?default=false',
+          );
+          if (bytes != null) cover = await saveCoverBytes(bytes);
+        }
+        finalCode = isbn ?? code;
+        outcome = LookupOutcome(result: picked.toLookup(), coverPath: cover);
+      }
+    }
+  }
+  if (!context.mounted) return;
+
   nav.push(
     MaterialPageRoute<void>(
-      builder: (_) => ItemFormScreen(draft: draftFromLookup(code, outcome, wishlist: wishlist)),
+      builder: (_) => ItemFormScreen(draft: draftFromLookup(finalCode, outcome!, wishlist: wishlist)),
     ),
   );
   messenger.showSnackBar(SnackBar(content: Text(outcome.message()), duration: const Duration(seconds: 5)));
 }
+
+Future<bool?> _askTitleSearch(BuildContext context) => showDialog<bool>(
+  context: context,
+  builder: (ctx) => AlertDialog(
+    icon: const Icon(Icons.manage_search),
+    title: const Text('Code non reconnu'),
+    content: const Text(
+      'Aucune fiche n\'existe pour ce code. Voulez-vous chercher le livre par son titre et son auteur ?',
+    ),
+    actions: [
+      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Saisir à la main')),
+      FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Chercher par titre')),
+    ],
+  ),
+);
 
 enum _Duplicate { open, addAnyway }
 

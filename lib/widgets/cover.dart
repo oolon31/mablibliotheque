@@ -15,6 +15,8 @@ Color typeColor(BuildContext context, ItemType type) {
   return switch (type) {
     ItemType.vinyle => scheme.primary,
     ItemType.livre => scheme.tertiary,
+    ItemType.dvd => const Color(0xFF7B5EA7),
+    ItemType.bluray => const Color(0xFF1F7F8A),
     ItemType.bd => _bdColors.putIfAbsent(
       scheme.brightness,
       () => ColorScheme.fromSeed(seedColor: const Color(0xFF2F6A8C), brightness: scheme.brightness).primary,
