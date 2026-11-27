@@ -5,7 +5,7 @@ Chaque personne a son compte et sa bibliothèque, qu'elle peut partager en lectu
 
 ## Installer l'application
 
-Téléchargez `apk/ma-bibliotheque-2.2.1.apk` sur votre téléphone Android et ouvrez-le
+Téléchargez `apk/ma-bibliotheque-2.3.0.apk` sur votre téléphone Android et ouvrez-le
 (autorisez l'installation depuis cette source si Android le demande).
 
 ## Fonctionnalités
@@ -13,7 +13,7 @@ Téléchargez `apk/ma-bibliotheque-2.2.1.apk` sur votre téléphone Android et o
 - Collection, liste d'envies, prêts, statistiques
 - Ajout par scan de code-barres (livres, BD, vinyles, DVD, Blu-ray), avec recherche automatique de la fiche
 - Code non reconnu : recherche du livre par titre et auteur
-- Types : vinyles, livres, BD, DVD, Blu-ray
+- Types : vinyles, livres, BD, DVD, Blu-ray, Lego (numéro de set, thème, nombre de pièces)
 - Sauvegarde et restauration dans un fichier `.zip`
 - Comptes (e-mail et mot de passe), mot de passe oublié
 - Partage : invitation par e-mail, droit de lecture seule ou de modification
@@ -42,7 +42,7 @@ Les règles d'accès se testent sur PostgreSQL local, sans toucher au serveur r�
 - L'application nécessite une connexion internet pour afficher et modifier les bibliothèques.
 - Les mises à jour ne sont pas en direct : la bibliothèque se rafraîchit à l'ouverture et en tirant vers le bas.
 - La clé de signature de production n'est pas dans le dépôt. Sans elle, il est impossible de publier une mise à jour qui s'installe par-dessus l'application : conservez-la en lieu sûr (voir `android/key.properties.example`).
-- Les versions 2.2.0 et antérieures étaient signées avec une autre clé : il faut les désinstaller avant d'installer la version actuelle. Les données sont dans le cloud et restent accessibles après reconnexion.
+- Les versions 2.2.0 et antérieures étaient signées avec une autre clé : il faut les désinstaller avant d'installer la version actuelle (à partir de la 2.2.1, les mises à jour s'installent par-dessus). Les données sont dans le cloud et restent accessibles après reconnexion.
 
 ## Licence
 
