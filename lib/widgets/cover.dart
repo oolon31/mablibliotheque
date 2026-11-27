@@ -15,6 +15,7 @@ Color typeColor(BuildContext context, ItemType type) {
   return switch (type) {
     ItemType.vinyle => scheme.primary,
     ItemType.livre => scheme.tertiary,
+    ItemType.lego => const Color(0xFFC77A1E),
     ItemType.dvd => const Color(0xFF7B5EA7),
     ItemType.bluray => const Color(0xFF1F7F8A),
     ItemType.bd => _bdColors.putIfAbsent(
@@ -37,7 +38,7 @@ class Cover extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Pochette de vinyle carrée, livre et BD au format portrait.
-    final height = item.type == ItemType.vinyle ? width : width * 1.4;
+    final height = item.type == ItemType.vinyle || item.type == ItemType.lego ? width : width * 1.4;
     final path = item.coverPath;
     final color = typeColor(context, item.type);
     Widget placeholder() => Container(

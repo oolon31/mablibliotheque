@@ -497,6 +497,19 @@ LookupResult? parseUpcItemDb(Map<String, dynamic> json, String code) {
   if (category.contains('music')) return null;
 
   final lower = '$rawTitle $category'.toLowerCase();
+  final brand = _str(item['brand']);
+  if (brand.toLowerCase().contains('lego') || rawTitle.toLowerCase().startsWith('lego')) {
+    final pieces = RegExp(r'(\d{2,5})\s*(?:pi[èe]ces?|pieces?|pcs?)\b', caseSensitive: false).firstMatch(rawTitle);
+    final images = item['images'];
+    return LookupResult(
+      type: ItemType.lego,
+      title: rawTitle.replaceFirst(RegExp(r'^lego\s*(®|™)?\s*', caseSensitive: false), '').trim(),
+      publisher: 'LEGO',
+      volume: pieces?.group(1) ?? '',
+      coverUrl: images is List ? images.whereType<String>().firstOrNull : null,
+      source: 'UPCitemdb',
+    );
+  }
   final isBluray = RegExp(r'blu-?ray|blu ray|4k|uhd').hasMatch(lower);
   final images = item['images'];
   final cover = images is List ? images.whereType<String>().firstOrNull : null;

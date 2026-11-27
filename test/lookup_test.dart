@@ -257,6 +257,30 @@ void videoAndTitleTests() {
       expect(matches.every((m) => m.isbn == null || isIsbn(m.isbn!)), isTrue);
     });
 
+    test('un set LEGO est reconnu avec son nombre de pièces, sans le mot LEGO dans le titre', () {
+      final r = parseUpcItemDb({
+        'items': [
+          {
+            'title': 'LEGO® Star Wars Faucon Millenium 75257 - 1351 pièces',
+            'brand': 'LEGO',
+            'category': 'Toys & Games',
+          },
+        ],
+      }, '5702016370034')!;
+      expect(r.type, ItemType.lego);
+      expect(r.title, 'Star Wars Faucon Millenium 75257 - 1351 pièces');
+      expect(r.volume, '1351');
+      expect(r.publisher, 'LEGO');
+    });
+
+    test('les codes-barres LEGO sont reconnus par leur préfixe', () {
+      expect(guessTypeFromCode('5702016370034'), ItemType.lego);
+      expect(guessTypeFromCode('5702017153469'), ItemType.lego);
+      expect(guessTypeFromCode('0673419340144'), ItemType.lego);
+      expect(guessTypeFromCode('9782070360024'), ItemType.livre);
+      expect(guessTypeFromCode('196587737313'), ItemType.vinyle);
+    });
+
     test('un résultat de recherche devient une fiche livre prête à enregistrer', () {
       const m = TitleMatch(title: 'On a marché sur la lune', creator: 'Hergé', year: 1954, isbn: '9782203001169');
       final r = m.toLookup();

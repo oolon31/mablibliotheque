@@ -263,10 +263,10 @@ begin
 end;
 $$;
 
--- Types d'objets : livres, BD, vinyles, DVD et Blu-ray (idempotent).
+-- Types d'objets : livres, BD, vinyles, DVD, Blu-ray et Lego (idempotent).
 alter table public.items drop constraint if exists items_type_check;
 alter table public.items add constraint items_type_check
-  check (type in ('vinyle', 'livre', 'bd', 'dvd', 'bluray'));
+  check (type in ('vinyle', 'livre', 'bd', 'dvd', 'bluray', 'lego'));
 
 -- ---------------------------------------------------------------------------
 -- Droits de base. Les nouveaux projets Supabase n'accordent plus rien automatiquement :

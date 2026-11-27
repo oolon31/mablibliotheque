@@ -88,11 +88,11 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
       id: widget.item?.id,
       type: _type,
       title: _title.text.trim(),
-      creator: _creator.text.trim(),
+      creator: _type.hasCreator ? _creator.text.trim() : '',
       year: int.tryParse(_year.text.trim()),
       publisher: _publisher.text.trim(),
       series: hasSeries ? _series.text.trim() : '',
-      volume: hasSeries ? _volume.text.trim() : '',
+      volume: (hasSeries || _type.usesPieces) ? _volume.text.trim() : '',
       genre: _genre.text.trim(),
       format: _format,
       identifier: _identifier.text.trim(),
@@ -233,6 +233,8 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                       onSelected: (_) => setState(() {
                         _type = t;
                         if (!_type.formats.contains(_format)) _format = '';
+                        // Pratique : la marque est presque toujours LEGO.
+                        if (t == ItemType.lego && _publisher.text.trim().isEmpty) _publisher.text = 'LEGO';
                       }),
                     ),
                 ],
@@ -270,12 +272,25 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                 decoration: const InputDecoration(labelText: 'Titre *'),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'Le titre est obligatoire' : null,
               ),
-              gap,
-              _AutocompleteField(
-                controller: _creator,
-                label: _type.creatorLabel,
-                options: library.suggestions((i) => i.creator, type: _type),
-              ),
+              if (_type.hasCreator) ...[
+                gap,
+                _AutocompleteField(
+                  controller: _creator,
+                  label: _type.creatorLabel,
+                  options: library.suggestions((i) => i.creator, type: _type),
+                ),
+              ],
+              if (_type.usesPieces) ...[
+                gap,
+                TextFormField(
+                  controller: _volume,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(labelText: 'Nombre de pièces'),
+                  validator: (v) => (v == null || v.trim().isEmpty || RegExp(r'^\d{1,6}$').hasMatch(v.trim()))
+                      ? null
+                      : 'Nombre invalide',
+                ),
+              ],
               if (_type.hasSeries) ...[
                 gap,
                 Row(
@@ -330,14 +345,14 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
               gap,
               _AutocompleteField(
                 controller: _genre,
-                label: 'Genre',
+                label: _type.genreLabel,
                 options: library.suggestions((i) => i.genre, type: _type),
               ),
               gap,
               DropdownButtonFormField<String?>(
                 key: ValueKey('format-$_type'),
                 initialValue: _format.isEmpty ? null : _format,
-                decoration: const InputDecoration(labelText: 'Format'),
+                decoration: InputDecoration(labelText: _type.formatLabel),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('—')),
                   for (final f in _type.formats) DropdownMenuItem(value: f, child: Text(f)),
@@ -368,7 +383,13 @@ class _ItemFormScreenState extends State<ItemFormScreen> {
                           onPressed: _scanIntoForm,
                         ),
                 ),
-                validator: (v) => (v == null || v.trim().isEmpty || isPlausibleCode(v)) || _type == ItemType.vinyle
+                // Seuls les livres et les BD ont un ISBN à contrôler ; un numéro de set Lego ou une référence
+                // de disque est libre.
+                validator: (v) =>
+                    (v == null ||
+                        v.trim().isEmpty ||
+                        isPlausibleCode(v) ||
+                        (_type != ItemType.livre && _type != ItemType.bd))
                     ? null
                     : 'ISBN invalide',
               ),

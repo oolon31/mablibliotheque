@@ -13,7 +13,11 @@ class ItemTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final muted = theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant);
-    final line2 = [if (item.creator.isNotEmpty) item.creator, if (item.year != null) '${item.year}'].join(' · ');
+    final line2 = [
+      if (item.creator.isNotEmpty) item.creator else if (item.type.usesPieces && item.genre.isNotEmpty) item.genre,
+      if (item.year != null) '${item.year}',
+      if (item.type.usesPieces && item.volume.isNotEmpty) '${item.volume} pièces',
+    ].join(' · ');
 
     return InkWell(
       onTap: onTap,

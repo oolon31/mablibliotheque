@@ -106,6 +106,10 @@ exception when others then raise notice 'OK : erreur attendue (%)', sqlerrm;
 end $$;
 select 'après échec : aucun objet "Bon"' as etape, count(*) from public.items where title='Bon';
 
+-- Nouveaux types acceptés
+select 'types dvd, bluray, lego acceptés' as etape, count(*) from public.restore_library(
+  '[{"type":"dvd","title":"Amélie"},{"type":"bluray","title":"Dune"},{"type":"lego","title":"Faucon","volume":"7541"}]'::jsonb, false);
+
 -- Remplacement : efface l'ancien contenu d'Alice
 select 'remplacement' as etape, count(*) from public.restore_library('[{"type":"bd","title":"Seul"}]'::jsonb, true);
 select 'après remplacement : objets d''alice (attendu 1)' as etape, count(*) from public.items where owner_id = auth.uid();

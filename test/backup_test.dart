@@ -55,6 +55,24 @@ void main() {
       expect((json['items'] as List).single.containsKey('id'), isFalse);
     });
 
+    test('les nouveaux types (DVD, Blu-ray, Lego) font l\'aller-retour', () {
+      final extras = [
+        Item(type: ItemType.dvd, title: 'Amélie', creator: 'Jeunet', createdAt: DateTime(2026)),
+        Item(type: ItemType.bluray, title: 'Dune', format: 'Steelbook', createdAt: DateTime(2026)),
+        Item(
+          type: ItemType.lego,
+          title: 'Faucon Millenium',
+          volume: '7541',
+          genre: 'Star Wars',
+          createdAt: DateTime(2026),
+        ),
+      ];
+      final back = decodeBackup(encodeBackup([for (final i in extras) BackupEntry(i)]));
+      expect([for (final e in back.entries) e.item.type], [ItemType.dvd, ItemType.bluray, ItemType.lego]);
+      expect(back.entries[2].item.volume, '7541');
+      expect(back.count(ItemType.lego), 1);
+    });
+
     test('nom de fichier daté', () {
       expect(backupFileName(DateTime(2026, 3, 7)), 'ma-bibliotheque-2026-03-07.zip');
     });

@@ -46,6 +46,18 @@ enum ItemType {
     publisherLabel: 'Éditeur / distributeur',
     identifierLabel: 'Code-barres (EAN)',
     formats: ['Simple', 'Double', 'Steelbook', '4K UHD', 'Coffret'],
+  ),
+  lego(
+    label: 'Lego',
+    plural: 'Lego',
+    icon: Icons.extension_outlined,
+    creatorLabel: '',
+    publisherLabel: 'Marque',
+    identifierLabel: 'Numéro du set ou code-barres',
+    formats: ['Neuf, scellé', 'Ouvert, complet', 'Incomplet', 'Monté (exposé)'],
+    genreLabel: 'Thème',
+    formatLabel: 'État',
+    hasCreator: false,
   );
 
   const ItemType({
@@ -56,6 +68,9 @@ enum ItemType {
     required this.publisherLabel,
     required this.identifierLabel,
     required this.formats,
+    this.genreLabel = 'Genre',
+    this.formatLabel = 'Format',
+    this.hasCreator = true,
   });
 
   final String label;
@@ -65,9 +80,17 @@ enum ItemType {
   final String publisherLabel;
   final String identifierLabel;
   final List<String> formats;
+  final String genreLabel;
+  final String formatLabel;
+
+  /// Faux pour les Lego : un set n'a pas d'auteur.
+  final bool hasCreator;
 
   /// Les vinyles n'ont pas de série ni de tome.
-  bool get hasSeries => this != ItemType.vinyle;
+  bool get hasSeries => this != ItemType.vinyle && this != ItemType.lego;
+
+  /// Lego : le nombre de pièces est rangé dans le champ `volume` (pas de série ni de tome).
+  bool get usesPieces => this == ItemType.lego;
 
   /// Films : pas d'ISBN, mais un code-barres EAN.
   bool get isVideo => this == ItemType.dvd || this == ItemType.bluray;

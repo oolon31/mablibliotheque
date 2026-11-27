@@ -105,4 +105,38 @@ void main() {
     expect(find.text('ISBN invalide'), findsOneWidget);
     expect(library.items, isEmpty);
   });
+
+  testWidgets('ajouter un set Lego : pas d\'auteur, nombre de pièces, numéro de set libre', (tester) async {
+    final library = Library(MemoryItemRepository());
+    await library.load();
+    await tester.pumpWidget(
+      LibraryScope(
+        library: library,
+        child: const MaterialApp(home: ItemFormScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Lego'));
+    await tester.pumpAndSettle();
+
+    // Un set n'a pas d'auteur ; il a un nombre de pièces et une marque préremplie.
+    expect(find.widgetWithText(TextFormField, 'Nombre de pièces'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Série'), findsNothing);
+    expect(find.text('LEGO'), findsOneWidget);
+
+    await tester.enterText(find.widgetWithText(TextFormField, 'Titre *'), 'Faucon Millenium');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Nombre de pièces'), '7541');
+    await tester.enterText(find.widgetWithText(TextFormField, 'Numéro du set ou code-barres'), '75192');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('ISBN invalide'), findsNothing);
+    final saved = library.items.single;
+    expect(saved.type, ItemType.lego);
+    expect(saved.volume, '7541');
+    expect(saved.identifier, '75192');
+    expect(saved.publisher, 'LEGO');
+    expect(saved.creator, isEmpty);
+  });
 }

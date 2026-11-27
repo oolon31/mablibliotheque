@@ -57,8 +57,14 @@ bool isPlausibleCode(String raw) {
   };
 }
 
-/// Livres et BD ont un ISBN ; le reste est supposé être un disque.
-ItemType guessTypeFromCode(String code) => isIsbn(code) ? ItemType.livre : ItemType.vinyle;
+/// Livres et BD ont un ISBN, les boîtes LEGO un préfixe connu ; le reste est supposé être un disque.
+ItemType guessTypeFromCode(String code) {
+  if (isIsbn(code)) return ItemType.livre;
+  final c = normalizeCode(code).replaceFirst(RegExp(r'^0+'), '');
+  // Préfixes GS1 des boîtes LEGO : 5702016 et 5702017 (Europe), 673419 (États-Unis).
+  if (c.startsWith('5702016') || c.startsWith('5702017') || c.startsWith('673419')) return ItemType.lego;
+  return ItemType.vinyle;
+}
 
 /// Deux codes désignent-ils le même produit ? (un UPC-A lu en EAN-13 a un zéro devant)
 bool sameCode(String a, String b) {
